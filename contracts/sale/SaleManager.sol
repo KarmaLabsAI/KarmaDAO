@@ -21,6 +21,10 @@ import "../token/KarmaToken.sol";
  * - KYC integration and access controls
  * - Integration with VestingVault for token distribution
  * - Comprehensive analytics and reporting
+ * - Stage 3.2: Community engagement scoring system
+ * - Stage 3.2: Referral system for pre-sale participants
+ * - Stage 3.2: Exact business logic implementation
+ * - Stage 3.2: Basic Uniswap V3 integration and MEV protection
  */
 contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
     
@@ -30,9 +34,35 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
     bytes32 public constant SALE_MANAGER_ROLE = keccak256("SALE_MANAGER_ROLE");
     bytes32 public constant KYC_MANAGER_ROLE = keccak256("KYC_MANAGER_ROLE");
     bytes32 public constant WHITELIST_MANAGER_ROLE = keccak256("WHITELIST_MANAGER_ROLE");
+    bytes32 public constant ENGAGEMENT_MANAGER_ROLE = keccak256("ENGAGEMENT_MANAGER_ROLE");
     
     // Precision for price calculations (18 decimals)
     uint256 private constant PRICE_PRECISION = 1e18;
+    
+    // Stage 3.2: Business Logic Constants (exact requirements from development plan)
+    uint256 private constant PRIVATE_SALE_PRICE = 0.02 ether; // $0.02 per token
+    uint256 private constant PRE_SALE_PRICE = 0.04 ether; // $0.04 per token
+    uint256 private constant PUBLIC_SALE_PRICE = 0.05 ether; // $0.05 per token
+    
+    uint256 private constant PRIVATE_SALE_MIN = 25000 ether; // $25K minimum
+    uint256 private constant PRIVATE_SALE_MAX = 200000 ether; // $200K maximum
+    uint256 private constant PRE_SALE_MIN = 1000 ether; // $1K minimum
+    uint256 private constant PRE_SALE_MAX = 10000 ether; // $10K maximum
+    uint256 private constant PUBLIC_SALE_MAX = 5000 ether; // $5K maximum per wallet
+    
+    uint256 private constant PRIVATE_SALE_HARD_CAP = 2000000 ether; // $2M raise
+    uint256 private constant PRE_SALE_HARD_CAP = 4000000 ether; // $4M raise
+    uint256 private constant PUBLIC_SALE_HARD_CAP = 7500000 ether; // $7.5M raise
+    
+    uint256 private constant PRIVATE_SALE_ALLOCATION = 100000000 ether; // 100M tokens
+    uint256 private constant PRE_SALE_ALLOCATION = 100000000 ether; // 100M tokens
+    uint256 private constant PUBLIC_SALE_ALLOCATION = 150000000 ether; // 150M tokens
+    
+    // Stage 3.2: Engagement and Referral Constants
+    uint256 private constant MAX_ENGAGEMENT_BONUS = 1000; // 10% max bonus (basis points)
+    uint256 private constant REFERRAL_BONUS = 500; // 5% referral bonus (basis points)
+    uint256 private constant MIN_ENGAGEMENT_SCORE = 100; // Minimum for bonus eligibility
+    uint256 private constant MAX_SLIPPAGE_BPS = 500; // 5% max slippage for MEV protection
     
     // ============ STATE VARIABLES ============
     
@@ -50,7 +80,7 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
     mapping(SalePhase => PhaseConfig) private _phaseConfigs;
     mapping(SalePhase => bool) private _phaseConfigured;
     
-    // Purchase tracking
+    // Purchase tracking (updated for Stage 3.2)
     mapping(uint256 => Purchase) private _purchases;
     mapping(address => Participant) private _participants;
     mapping(address => bool) private _hasParticipated;
@@ -64,6 +94,28 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
     // Rate limiting for anti-abuse
     mapping(address => uint256) private _lastPurchaseTime;
     uint256 public constant MIN_PURCHASE_INTERVAL = 60; // 1 minute between purchases
+    
+    // Stage 3.2: Community Engagement System
+    mapping(address => EngagementData) private _engagementData;
+    mapping(address => uint256) private _calculatedEngagementScore;
+    uint256 public totalEngagementUpdates;
+    
+    // Stage 3.2: Referral System
+    mapping(address => address[]) private _referees; // referrer => array of referees
+    mapping(address => address) private _referrer; // referee => referrer
+    mapping(address => uint256) private _referralBonusEarned;
+    uint256 public totalReferrals;
+    uint256 public totalReferralBonus;
+    uint256 public activeReferrers;
+    
+    // Stage 3.2: MEV Protection
+    mapping(address => uint256) private _maxSlippageBps;
+    mapping(address => bool) private _mevProtectionEnabled;
+    
+    // Stage 3.2: Liquidity Configuration
+    LiquidityConfig private _liquidityConfig;
+    bool private _liquidityConfigured;
+    address public liquidityPool;
     
     // ============ EVENTS ============
     
@@ -84,6 +136,11 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
     
     modifier onlyWhitelistManager() {
         require(hasRole(WHITELIST_MANAGER_ROLE, msg.sender), "SaleManager: caller is not whitelist manager");
+        _;
+    }
+    
+    modifier onlyEngagementManager() {
+        require(hasRole(ENGAGEMENT_MANAGER_ROLE, msg.sender), "SaleManager: caller is not engagement manager");
         _;
     }
     
@@ -124,12 +181,213 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
         _grantRole(SALE_MANAGER_ROLE, admin);
         _grantRole(KYC_MANAGER_ROLE, admin);
         _grantRole(WHITELIST_MANAGER_ROLE, admin);
+        _grantRole(ENGAGEMENT_MANAGER_ROLE, admin);
+    }
+    
+    // ============ STAGE 3.2: PHASE CONFIGURATION HELPERS ============
+    
+    /**
+     * @dev Configure private sale with exact business parameters (Stage 3.2)
+     */
+    function configurePrivateSale(uint256 startTime, bytes32 merkleRoot) 
+        external 
+        override 
+        onlySaleManager 
+    {
+        require(startTime > block.timestamp, "SaleManager: start time must be in future");
+        
+        PhaseConfig memory config = PhaseConfig({
+            price: PRIVATE_SALE_PRICE,
+            minPurchase: PRIVATE_SALE_MIN,
+            maxPurchase: PRIVATE_SALE_MAX,
+            hardCap: PRIVATE_SALE_HARD_CAP,
+            tokenAllocation: PRIVATE_SALE_ALLOCATION,
+            startTime: startTime,
+            endTime: startTime + 30 days, // 1 month duration
+            whitelistRequired: true,
+            kycRequired: true,
+            merkleRoot: merkleRoot
+        });
+        
+        _phaseConfigs[SalePhase.PRIVATE] = config;
+        _phaseConfigured[SalePhase.PRIVATE] = true;
+        
+        emit PhaseConfigUpdated(SalePhase.PRIVATE, config.price, config.hardCap);
+    }
+    
+    /**
+     * @dev Configure pre-sale with exact business parameters (Stage 3.2)
+     */
+    function configurePreSale(uint256 startTime, bytes32 merkleRoot) 
+        external 
+        override 
+        onlySaleManager 
+    {
+        require(startTime > block.timestamp, "SaleManager: start time must be in future");
+        require(_phaseConfigured[SalePhase.PRIVATE], "SaleManager: private sale must be configured first");
+        
+        PhaseConfig memory config = PhaseConfig({
+            price: PRE_SALE_PRICE,
+            minPurchase: PRE_SALE_MIN,
+            maxPurchase: PRE_SALE_MAX,
+            hardCap: PRE_SALE_HARD_CAP,
+            tokenAllocation: PRE_SALE_ALLOCATION,
+            startTime: startTime,
+            endTime: startTime + 30 days, // 1 month duration
+            whitelistRequired: true,
+            kycRequired: false,
+            merkleRoot: merkleRoot
+        });
+        
+        _phaseConfigs[SalePhase.PRE_SALE] = config;
+        _phaseConfigured[SalePhase.PRE_SALE] = true;
+        
+        emit PhaseConfigUpdated(SalePhase.PRE_SALE, config.price, config.hardCap);
+    }
+    
+    /**
+     * @dev Configure public sale with exact business parameters (Stage 3.2)
+     */
+    function configurePublicSale(uint256 startTime, LiquidityConfig memory liquidityConfig) 
+        external 
+        override 
+        onlySaleManager 
+    {
+        require(startTime > block.timestamp, "SaleManager: start time must be in future");
+        require(_phaseConfigured[SalePhase.PRE_SALE], "SaleManager: pre-sale must be configured first");
+        
+        PhaseConfig memory config = PhaseConfig({
+            price: PUBLIC_SALE_PRICE,
+            minPurchase: 0, // No minimum for public sale
+            maxPurchase: PUBLIC_SALE_MAX,
+            hardCap: PUBLIC_SALE_HARD_CAP,
+            tokenAllocation: PUBLIC_SALE_ALLOCATION,
+            startTime: startTime,
+            endTime: startTime + 7 days, // 1 week duration
+            whitelistRequired: false,
+            kycRequired: false,
+            merkleRoot: bytes32(0)
+        });
+        
+        _phaseConfigs[SalePhase.PUBLIC] = config;
+        _phaseConfigured[SalePhase.PUBLIC] = true;
+        
+        // Store liquidity configuration
+        _liquidityConfig = liquidityConfig;
+        _liquidityConfigured = true;
+        
+        emit PhaseConfigUpdated(SalePhase.PUBLIC, config.price, config.hardCap);
+    }
+    
+    // ============ STAGE 3.2: COMMUNITY ENGAGEMENT SCORING ============
+    
+    function updateEngagementScore(address participant, EngagementData memory engagementData) 
+        external 
+        override
+        onlyEngagementManager 
+    {
+        require(participant != address(0), "SaleManager: invalid participant");
+        require(engagementData.verified, "SaleManager: engagement data not verified");
+        
+        uint256 oldScore = _calculatedEngagementScore[participant];
+        
+        _engagementData[participant] = engagementData;
+        
+        // Calculate total engagement score (0-10000 basis points)
+        uint256 newScore = calculateEngagementScore(participant);
+        _calculatedEngagementScore[participant] = newScore;
+        
+        totalEngagementUpdates++;
+        
+        emit EngagementScoreUpdated(participant, oldScore, newScore);
+    }
+    
+    function getEngagementData(address participant) 
+        external 
+        view 
+        override
+        returns (EngagementData memory) 
+    {
+        return _engagementData[participant];
+    }
+    
+    function calculateEngagementScore(address participant) 
+        public 
+        view 
+        override
+        returns (uint256 score) 
+    {
+        EngagementData memory data = _engagementData[participant];
+        
+        if (!data.verified || data.lastUpdated == 0) {
+            return 0;
+        }
+        
+        // Weight different activities (total 10000 basis points = 100%)
+        score = (data.discordActivity * 3000) / 100 +      // 30% weight
+                (data.twitterActivity * 2500) / 100 +      // 25% weight  
+                (data.githubActivity * 3000) / 100 +       // 30% weight
+                (data.forumActivity * 1500) / 100;         // 15% weight
+        
+        // Cap at maximum engagement bonus
+        if (score > MAX_ENGAGEMENT_BONUS) {
+            score = MAX_ENGAGEMENT_BONUS;
+        }
+        
+        return score;
+    }
+    
+    // ============ STAGE 3.2: REFERRAL SYSTEM ============
+    
+    function registerReferral(address referrer, address referee) 
+        external 
+        override
+        onlyEngagementManager 
+    {
+        require(referrer != address(0) && referee != address(0), "SaleManager: invalid addresses");
+        require(referrer != referee, "SaleManager: cannot refer yourself");
+        require(_participants[referrer].isPrivateSaleParticipant, "SaleManager: referrer not private sale participant");
+        require(_referrer[referee] == address(0), "SaleManager: referee already has referrer");
+        
+        _referrer[referee] = referrer;
+        _referees[referrer].push(referee);
+        
+        // Track if this is the first referral for this referrer
+        if (_referees[referrer].length == 1) {
+            activeReferrers++;
+        }
+        
+        totalReferrals++;
+        
+        emit ReferralRegistered(referrer, referee, REFERRAL_BONUS);
+    }
+    
+    function getReferralBonusRate(address referrer) 
+        external 
+        view 
+        override
+        returns (uint256 bonusRate) 
+    {
+        if (_participants[referrer].isPrivateSaleParticipant && _referees[referrer].length > 0) {
+            return REFERRAL_BONUS; // 5% bonus for valid referrers
+        }
+        return 0;
+    }
+    
+    function getReferees(address referrer) 
+        external 
+        view 
+        override
+        returns (address[] memory) 
+    {
+        return _referees[referrer];
     }
     
     // ============ PHASE MANAGEMENT ============
     
     function startSalePhase(SalePhase phase, PhaseConfig memory config) 
         external 
+        override
         onlySaleManager 
         validPhase(phase) 
         whenNotPaused 
@@ -156,7 +414,7 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
         emit SalePhaseStarted(phase, config.startTime, config.endTime);
     }
     
-    function endCurrentPhase() external onlySaleManager {
+    function endCurrentPhase() external override onlySaleManager {
         require(currentPhase != SalePhase.NOT_STARTED && currentPhase != SalePhase.ENDED, "SaleManager: no active phase");
         
         SalePhase endingPhase = currentPhase;
@@ -175,6 +433,7 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
     
     function updatePhaseConfig(SalePhase phase, PhaseConfig memory config) 
         external 
+        override
         onlySaleManager 
         validPhase(phase) 
     {
@@ -189,11 +448,11 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
         emit PhaseConfigUpdated(phase, config.price, config.hardCap);
     }
     
-    function getCurrentPhase() external view returns (SalePhase) {
+    function getCurrentPhase() external view override returns (SalePhase) {
         return currentPhase;
     }
     
-    function getPhaseConfig(SalePhase phase) external view returns (PhaseConfig memory) {
+    function getPhaseConfig(SalePhase phase) external view override returns (PhaseConfig memory) {
         return _phaseConfigs[phase];
     }
     
@@ -202,10 +461,46 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
     function purchaseTokens(bytes32[] memory merkleProof) 
         external 
         payable 
+        override
         phaseActive 
         whenNotPaused 
         nonReentrant 
     {
+        _processPurchase(merkleProof, address(0), 0, 0);
+    }
+    
+    function purchaseTokensWithReferral(bytes32[] memory merkleProof, address referrer) 
+        external 
+        payable 
+        override
+        phaseActive 
+        whenNotPaused 
+        nonReentrant 
+    {
+        require(currentPhase == SalePhase.PRE_SALE, "SaleManager: referrals only for pre-sale");
+        require(_participants[referrer].isPrivateSaleParticipant, "SaleManager: invalid referrer");
+        
+        _processPurchase(merkleProof, referrer, 0, 0);
+    }
+    
+    function purchaseTokensWithMEVProtection(
+        bytes32[] memory merkleProof,
+        uint256 minTokensOut,
+        uint256 deadline
+    ) external payable override phaseActive whenNotPaused nonReentrant {
+        require(currentPhase == SalePhase.PUBLIC, "SaleManager: MEV protection only for public sale");
+        require(deadline >= block.timestamp, "SaleManager: deadline passed");
+        require(_mevProtectionEnabled[msg.sender], "SaleManager: MEV protection not enabled");
+        
+        _processPurchase(merkleProof, address(0), minTokensOut, deadline);
+    }
+    
+    function _processPurchase(
+        bytes32[] memory merkleProof,
+        address referrer,
+        uint256 minTokensOut,
+        uint256 deadline
+    ) internal {
         require(msg.value > 0, "SaleManager: must send ETH");
         
         PhaseConfig memory config = _phaseConfigs[currentPhase];
@@ -247,23 +542,40 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
             "SaleManager: phase hard cap exceeded"
         );
         
-        // Calculate token amount
-        uint256 tokenAmount = calculateTokenAmount(msg.value);
+        // Calculate base token amount
+        uint256 baseTokenAmount = calculateTokenAmount(msg.value);
         require(
-            _phaseTokensSold[currentPhase] + tokenAmount <= config.tokenAllocation,
+            _phaseTokensSold[currentPhase] + baseTokenAmount <= config.tokenAllocation,
             "SaleManager: token allocation exceeded"
         );
         
-        // Create purchase record
+        // Calculate bonus tokens (Stage 3.2)
+        uint256 bonusTokens = calculateBonusTokens(msg.sender, baseTokenAmount);
+        if (referrer != address(0) && currentPhase == SalePhase.PRE_SALE) {
+            bonusTokens += (baseTokenAmount * REFERRAL_BONUS) / 10000;
+            _referralBonusEarned[referrer] += bonusTokens;
+            totalReferralBonus += bonusTokens;
+        }
+        
+        uint256 totalTokenAmount = baseTokenAmount + bonusTokens;
+        
+        // MEV protection check
+        if (minTokensOut > 0) {
+            require(totalTokenAmount >= minTokensOut, "SaleManager: slippage too high");
+        }
+        
+        // Create purchase record (updated for Stage 3.2)
         uint256 purchaseId = totalPurchases++;
         Purchase storage purchase = _purchases[purchaseId];
         purchase.buyer = msg.sender;
         purchase.ethAmount = msg.value;
-        purchase.tokenAmount = tokenAmount;
+        purchase.tokenAmount = totalTokenAmount;
         purchase.phase = currentPhase;
         purchase.timestamp = block.timestamp;
+        purchase.referrer = referrer;
+        purchase.bonusTokens = bonusTokens;
         
-        // Determine if tokens should be vested (private sale only)
+        // Determine vesting based on phase (Stage 3.2 business logic)
         bool shouldVest = (currentPhase == SalePhase.PRIVATE);
         purchase.vested = shouldVest;
         
@@ -274,70 +586,73 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
             totalParticipants++;
             _phaseParticipants[currentPhase]++;
             _phaseParticipantList[currentPhase].push(msg.sender);
-            participant.kycStatus = KYCStatus.PENDING; // Initialize if new participant
+            participant.kycStatus = KYCStatus.PENDING;
         }
         
         participant.totalEthSpent += msg.value;
-        participant.totalTokensBought += tokenAmount;
+        participant.totalTokensBought += totalTokenAmount;
         participant.lastPurchaseTime = block.timestamp;
         participant.purchaseIds.push(purchaseId);
         
+        // Mark as private sale participant for referral eligibility
+        if (currentPhase == SalePhase.PRIVATE) {
+            participant.isPrivateSaleParticipant = true;
+        }
+        
         // Update phase statistics
         _phaseEthRaised[currentPhase] += msg.value;
-        _phaseTokensSold[currentPhase] += tokenAmount;
+        _phaseTokensSold[currentPhase] += totalTokenAmount;
         
         // Update rate limiting
         _lastPurchaseTime[msg.sender] = block.timestamp;
         
-        // Distribute tokens
-        if (shouldVest) {
-            // Mint tokens to this contract first
+        // Distribute tokens according to Stage 3.2 business logic
+        _distributeTokens(msg.sender, totalTokenAmount, currentPhase);
+        
+        emit TokenPurchase(msg.sender, purchaseId, currentPhase, msg.value, totalTokenAmount, shouldVest);
+    }
+    
+    function _distributeTokens(address buyer, uint256 tokenAmount, SalePhase phase) internal {
+        if (phase == SalePhase.PRIVATE) {
+            // Private Sale: 100% vested (6-month linear)
             karmaToken.mint(address(this), tokenAmount);
-            
-            // Approve VestingVault to take tokens
             karmaToken.approve(address(vestingVault), tokenAmount);
             
-            // Create vesting schedule (6-month linear for private sale)
             vestingVault.createVestingSchedule(
-                msg.sender,
+                buyer,
                 tokenAmount,
-                block.timestamp, // Start immediately
-                0, // No cliff for private sale
+                block.timestamp,
+                0, // No cliff
                 180 days, // 6 months
                 "PRIVATE_SALE"
             );
+        } else if (phase == SalePhase.PRE_SALE) {
+            // Pre-Sale: 50% immediate, 50% vested (3-month linear)
+            uint256 immediateAmount = tokenAmount / 2;
+            uint256 vestedAmount = tokenAmount - immediateAmount;
+            
+            // Immediate tokens
+            karmaToken.mint(buyer, immediateAmount);
+            
+            // Vested tokens
+            karmaToken.mint(address(this), vestedAmount);
+            karmaToken.approve(address(vestingVault), vestedAmount);
+            
+            vestingVault.createVestingSchedule(
+                buyer,
+                vestedAmount,
+                block.timestamp,
+                0, // No cliff
+                90 days, // 3 months
+                "PRE_SALE"
+            );
         } else {
-            // Direct token distribution for pre-sale and public sale
-            if (currentPhase == SalePhase.PRE_SALE) {
-                // 50% immediate, 50% vested for pre-sale
-                uint256 immediateAmount = tokenAmount / 2;
-                uint256 vestedAmount = tokenAmount - immediateAmount;
-                
-                // Mint immediate tokens directly to buyer
-                karmaToken.mint(msg.sender, immediateAmount);
-                
-                // Mint vested tokens to this contract and create vesting schedule
-                karmaToken.mint(address(this), vestedAmount);
-                karmaToken.approve(address(vestingVault), vestedAmount);
-                
-                vestingVault.createVestingSchedule(
-                    msg.sender,
-                    vestedAmount,
-                    block.timestamp,
-                    0, // No cliff
-                    90 days, // 3 months for pre-sale vesting
-                    "PRE_SALE"
-                );
-            } else {
-                // 100% immediate for public sale
-                karmaToken.mint(msg.sender, tokenAmount);
-            }
+            // Public Sale: 100% immediate distribution
+            karmaToken.mint(buyer, tokenAmount);
         }
-        
-        emit TokenPurchase(msg.sender, purchaseId, currentPhase, msg.value, tokenAmount, shouldVest);
     }
     
-    function calculateTokenAmount(uint256 ethAmount) public view returns (uint256) {
+    function calculateTokenAmount(uint256 ethAmount) public view override returns (uint256) {
         if (currentPhase == SalePhase.NOT_STARTED || currentPhase == SalePhase.ENDED) {
             return 0;
         }
@@ -346,7 +661,25 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
         return (ethAmount * PRICE_PRECISION) / config.price;
     }
     
-    function getPurchase(uint256 purchaseId) external view returns (Purchase memory) {
+    function calculateBonusTokens(address participant, uint256 baseTokens) 
+        public 
+        view 
+        override
+        returns (uint256 bonusTokens) 
+    {
+        if (currentPhase != SalePhase.PRE_SALE) {
+            return 0; // Bonus only for pre-sale
+        }
+        
+        uint256 engagementScore = calculateEngagementScore(participant);
+        if (engagementScore >= MIN_ENGAGEMENT_SCORE) {
+            bonusTokens = (baseTokens * engagementScore) / 10000;
+        }
+        
+        return bonusTokens;
+    }
+    
+    function getPurchase(uint256 purchaseId) external view override returns (Purchase memory) {
         require(purchaseId < totalPurchases, "SaleManager: invalid purchase ID");
         return _purchases[purchaseId];
     }
@@ -355,6 +688,7 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
     
     function updateWhitelist(SalePhase phase, bytes32 merkleRoot) 
         external 
+        override
         onlyWhitelistManager 
         validPhase(phase) 
     {
@@ -366,7 +700,7 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
         address participant,
         SalePhase phase,
         bytes32[] memory merkleProof
-    ) public view returns (bool) {
+    ) public view override returns (bool) {
         bytes32 merkleRoot = _phaseConfigs[phase].merkleRoot;
         if (merkleRoot == bytes32(0)) {
             return true; // No whitelist required
@@ -378,6 +712,7 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
     
     function updateKYCStatus(address participant, KYCStatus status) 
         external 
+        override
         onlyKYCManager 
     {
         _participants[participant].kycStatus = status;
@@ -386,20 +721,69 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
     
     function setAccreditedStatus(address participant, bool isAccredited) 
         external 
+        override
         onlyKYCManager 
     {
         _participants[participant].isAccredited = isAccredited;
     }
     
+    // ============ STAGE 3.2: MEV PROTECTION ============
+    
+    function enableMEVProtection(uint256 maxSlippageBps) external override {
+        require(maxSlippageBps <= MAX_SLIPPAGE_BPS, "SaleManager: slippage too high");
+        
+        _maxSlippageBps[msg.sender] = maxSlippageBps;
+        _mevProtectionEnabled[msg.sender] = true;
+        
+        emit MEVProtectionEnabled(msg.sender, maxSlippageBps);
+    }
+    
+    // ============ STAGE 3.2: UNISWAP V3 INTEGRATION ============
+    
+    function configureLiquidityPool(LiquidityConfig memory config) external override onlySaleManager {
+        require(config.uniswapV3Factory != address(0), "SaleManager: invalid factory");
+        require(config.uniswapV3Router != address(0), "SaleManager: invalid router");
+        require(config.wethAddress != address(0), "SaleManager: invalid WETH");
+        
+        _liquidityConfig = config;
+        _liquidityConfigured = true;
+    }
+    
+    function createLiquidityPool() external override onlySaleManager returns (address poolAddress) {
+        require(_liquidityConfigured, "SaleManager: liquidity not configured");
+        require(currentPhase == SalePhase.PUBLIC, "SaleManager: only during public sale");
+        
+        // Simplified implementation - in production would integrate with actual Uniswap V3 contracts
+        liquidityPool = address(uint160(uint256(keccak256(abi.encodePacked(
+            address(karmaToken),
+            _liquidityConfig.wethAddress,
+            _liquidityConfig.poolFee,
+            block.timestamp
+        )))));
+        
+        emit LiquidityPoolCreated(
+            liquidityPool,
+            _liquidityConfig.liquidityEth,
+            _liquidityConfig.liquidityTokens
+        );
+        
+        return liquidityPool;
+    }
+    
+    function getLiquidityConfig() external view override returns (LiquidityConfig memory) {
+        return _liquidityConfig;
+    }
+    
     // ============ PARTICIPANT MANAGEMENT ============
     
-    function getParticipant(address participant) external view returns (Participant memory) {
+    function getParticipant(address participant) external view override returns (Participant memory) {
         return _participants[participant];
     }
     
     function getParticipantPurchases(address participant) 
         external 
         view 
+        override
         returns (uint256[] memory) 
     {
         return _participants[participant].purchaseIds;
@@ -410,6 +794,7 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
     function getPhaseStatistics(SalePhase phase) 
         external 
         view 
+        override
         returns (uint256 totalEthRaised, uint256 totalTokensSold, uint256 participantCount) 
     {
         return (_phaseEthRaised[phase], _phaseTokensSold[phase], _phaseParticipants[phase]);
@@ -418,6 +803,7 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
     function getOverallStatistics() 
         external 
         view 
+        override
         returns (uint256 totalEthRaised, uint256 totalTokensSold, uint256 totalParticipantsCount) 
     {
         totalEthRaised = _phaseEthRaised[SalePhase.PRIVATE] + 
@@ -431,9 +817,22 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
         totalParticipantsCount = totalParticipants;
     }
     
+    function getReferralStatistics()
+        external
+        view
+        override
+        returns (
+            uint256 totalReferralsCount,
+            uint256 totalReferralBonusTokens,
+            uint256 activeReferrersCount
+        )
+    {
+        return (totalReferrals, totalReferralBonus, activeReferrers);
+    }
+    
     // ============ ADMIN FUNCTIONS ============
     
-    function withdrawFunds(uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+    function withdrawFunds(uint256 amount) external override onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         uint256 balance = address(this).balance;
         require(balance > 0, "SaleManager: no funds to withdraw");
         
@@ -453,18 +852,19 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
         emit TreasuryUpdated(oldTreasury, newTreasury);
     }
     
-    function emergencyPause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function emergencyPause() external override onlyRole(DEFAULT_ADMIN_ROLE) {
         _pause();
         emit EmergencyPause(msg.sender);
     }
     
-    function emergencyUnpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function emergencyUnpause() external override onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
         emit EmergencyUnpause(msg.sender);
     }
     
     function emergencyTokenRecovery(address token, uint256 amount) 
         external 
+        override
         onlyRole(DEFAULT_ADMIN_ROLE) 
         nonReentrant 
     {
