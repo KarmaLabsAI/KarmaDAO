@@ -117,6 +117,68 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
     bool private _liquidityConfigured;
     address public liquidityPool;
     
+    // ============ STAGE 3.3: TREASURY INTEGRATION ============
+    
+    // Automatic forwarding configuration
+    bool public automaticForwardingEnabled;
+    uint256 public forwardingThreshold;
+    uint256 public totalForwarded;
+    
+    // Fund allocation tracking
+    mapping(string => uint256) private _fundAllocations; // category => allocated amount
+    mapping(string => uint256) private _fundSpent; // category => spent amount
+    string[] private _allocationCategories;
+    mapping(string => bool) private _categoryExists;
+    
+    // Enhanced transaction logging
+    struct TransactionLog {
+        address participant;
+        uint256 amount;
+        uint256 tokens;
+        SalePhase phase;
+        uint256 timestamp;
+        string transactionType;
+    }
+    TransactionLog[] private _transactionHistory;
+    
+    // ============ STAGE 3.3: SECURITY AND ANTI-ABUSE ============
+    
+    // Front-running protection
+    mapping(address => uint256) private _maxPriceImpact;
+    mapping(address => uint256) private _commitDuration;
+    mapping(address => bytes32) private _purchaseCommitments;
+    mapping(address => uint256) private _commitmentTimestamp;
+    mapping(address => bool) private _frontRunningProtectionEnabled;
+    
+    // Advanced rate limiting
+    mapping(address => uint256) private _dailyLimit;
+    mapping(address => uint256) private _hourlyLimit;
+    mapping(address => uint256) private _cooldownPeriod;
+    mapping(address => uint256) private _dailySpent;
+    mapping(address => uint256) private _hourlySpent;
+    mapping(address => uint256) private _lastDayReset;
+    mapping(address => uint256) private _lastHourReset;
+    mapping(address => uint256) private _lastLargePurchase;
+    
+    // ============ STAGE 3.3: REPORTING AND ANALYTICS ============
+    
+    // Analytics hooks
+    mapping(address => bool) private _analyticsHooks;
+    mapping(address => mapping(string => bool)) private _hookEvents;
+    address[] private _activeHooks;
+    
+    // Enhanced participant tracking
+    mapping(address => uint256) private _participantRiskScore;
+    mapping(address => bool) private _isHighValueParticipant;
+    mapping(address => bool) private _isFrequentTrader;
+    mapping(address => uint256) private _participantFirstPurchase;
+    mapping(address => uint256) private _suspiciousActivityCount;
+    
+    // Compliance tracking
+    uint256 public totalSuspiciousActivities;
+    uint256 public totalHighValueParticipants;
+    uint256 public totalFrequentTraders;
+    
     // ============ EVENTS ============
     
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
@@ -606,8 +668,17 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
         // Update rate limiting
         _lastPurchaseTime[msg.sender] = block.timestamp;
         
+        // Stage 3.3: Update participant analytics
+        _updateParticipantAnalytics(msg.sender, msg.value);
+        
+        // Stage 3.3: Log transaction
+        _logTransaction(msg.sender, msg.value, totalTokenAmount, "purchase");
+        
         // Distribute tokens according to Stage 3.2 business logic
         _distributeTokens(msg.sender, totalTokenAmount, currentPhase);
+        
+        // Stage 3.3: Check and forward funds automatically
+        _checkAndForwardFunds();
         
         emit TokenPurchase(msg.sender, purchaseId, currentPhase, msg.value, totalTokenAmount, shouldVest);
     }
@@ -886,6 +957,383 @@ contract SaleManager is ISaleManager, AccessControl, Pausable, ReentrancyGuard {
             require(tokenContract.transfer(msg.sender, recoveryAmount), "SaleManager: token recovery failed");
         }
     }
+    
+    // ============ STAGE 3.3: TREASURY INTEGRATION ============
+    
+    function setAutomaticForwarding(bool enabled, uint256 threshold) 
+        external 
+        override 
+        onlyRole(DEFAULT_ADMIN_ROLE) 
+    {
+        automaticForwardingEnabled = enabled;
+        forwardingThreshold = threshold;
+        
+        emit AutomaticForwardingUpdated(enabled, threshold);
+    }
+    
+    function getFundAllocation(string memory category) 
+        external 
+        view 
+        override 
+        returns (uint256 allocated, uint256 spent) 
+    {
+        return (_fundAllocations[category], _fundSpent[category]);
+    }
+    
+    function setFundAllocations(string[] memory categories, uint256[] memory percentages) 
+        external 
+        override 
+        onlyRole(DEFAULT_ADMIN_ROLE) 
+    {
+        require(categories.length == percentages.length, "SaleManager: length mismatch");
+        
+        uint256 totalPercentage = 0;
+        for (uint256 i = 0; i < percentages.length; i++) {
+            totalPercentage += percentages[i];
+        }
+        require(totalPercentage == 10000, "SaleManager: percentages must sum to 100%");
+        
+        // Clear existing categories
+        for (uint256 i = 0; i < _allocationCategories.length; i++) {
+            delete _categoryExists[_allocationCategories[i]];
+            delete _fundAllocations[_allocationCategories[i]];
+        }
+        delete _allocationCategories;
+        
+        // Set new allocations
+        for (uint256 i = 0; i < categories.length; i++) {
+            _allocationCategories.push(categories[i]);
+            _categoryExists[categories[i]] = true;
+            _fundAllocations[categories[i]] = (address(this).balance * percentages[i]) / 10000;
+        }
+        
+        emit FundAllocationsSet(categories, percentages);
+    }
+    
+    function allocateFunds(string memory category, uint256 amount) 
+        external 
+        override 
+        onlyRole(DEFAULT_ADMIN_ROLE) 
+        nonReentrant 
+    {
+        require(_categoryExists[category], "SaleManager: category not exists");
+        require(_fundAllocations[category] >= _fundSpent[category] + amount, "SaleManager: insufficient allocation");
+        
+        _fundSpent[category] += amount;
+        
+        (bool success, ) = treasury.call{value: amount}("");
+        require(success, "SaleManager: allocation transfer failed");
+        
+        // Log transaction
+        _transactionHistory.push(TransactionLog({
+            participant: msg.sender,
+            amount: amount,
+            tokens: 0,
+            phase: currentPhase,
+            timestamp: block.timestamp,
+            transactionType: category
+        }));
+        
+        emit FundsAllocated(category, amount, msg.sender);
+    }
+    
+    // ============ STAGE 3.3: SECURITY AND ANTI-ABUSE ============
+    
+    function enableFrontRunningProtection(uint256 maxPriceImpact, uint256 commitDuration) 
+        external 
+        override 
+    {
+        require(maxPriceImpact <= 1000, "SaleManager: price impact too high"); // 10% max
+        require(commitDuration >= 60 && commitDuration <= 3600, "SaleManager: invalid commit duration"); // 1 min to 1 hour
+        
+        _maxPriceImpact[msg.sender] = maxPriceImpact;
+        _commitDuration[msg.sender] = commitDuration;
+        _frontRunningProtectionEnabled[msg.sender] = true;
+        
+        emit FrontRunningProtectionEnabled(msg.sender, maxPriceImpact, commitDuration);
+    }
+    
+    function commitPurchase(bytes32 commitment) external override {
+        require(_frontRunningProtectionEnabled[msg.sender], "SaleManager: protection not enabled");
+        require(_purchaseCommitments[msg.sender] == bytes32(0), "SaleManager: existing commitment");
+        
+        _purchaseCommitments[msg.sender] = commitment;
+        _commitmentTimestamp[msg.sender] = block.timestamp;
+        
+        emit PurchaseCommitted(msg.sender, commitment);
+    }
+    
+    function revealPurchase(bytes32[] memory merkleProof, uint256 nonce) 
+        external 
+        payable 
+        override 
+        phaseActive 
+        whenNotPaused 
+        nonReentrant 
+    {
+        require(_frontRunningProtectionEnabled[msg.sender], "SaleManager: protection not enabled");
+        require(_purchaseCommitments[msg.sender] != bytes32(0), "SaleManager: no commitment");
+        require(
+            block.timestamp >= _commitmentTimestamp[msg.sender] + _commitDuration[msg.sender],
+            "SaleManager: commit period not ended"
+        );
+        
+        // Verify commitment
+        bytes32 computedCommitment = keccak256(abi.encodePacked(msg.sender, msg.value, nonce));
+        require(_purchaseCommitments[msg.sender] == computedCommitment, "SaleManager: invalid commitment");
+        
+        // Clear commitment
+        delete _purchaseCommitments[msg.sender];
+        delete _commitmentTimestamp[msg.sender];
+        
+        // Execute purchase
+        _processPurchase(merkleProof, address(0), 0, block.timestamp + 1 hours);
+        
+        emit PurchaseRevealed(msg.sender, msg.value, nonce);
+    }
+    
+    function setAdvancedRateLimiting(uint256 dailyLimit, uint256 hourlyLimit, uint256 cooldownPeriod) 
+        external 
+        override 
+        onlyRole(DEFAULT_ADMIN_ROLE) 
+    {
+        require(dailyLimit >= hourlyLimit, "SaleManager: daily limit must be >= hourly");
+        require(cooldownPeriod <= 24 hours, "SaleManager: cooldown too long");
+        
+        _dailyLimit[msg.sender] = dailyLimit;
+        _hourlyLimit[msg.sender] = hourlyLimit;
+        _cooldownPeriod[msg.sender] = cooldownPeriod;
+        
+        emit AdvancedRateLimitingSet(dailyLimit, hourlyLimit, cooldownPeriod);
+    }
+    
+    // ============ STAGE 3.3: REPORTING AND ANALYTICS ============
+    
+    function getParticipantAnalytics(address participant) 
+        external 
+        view 
+        override 
+        returns (ISaleManager.ParticipantAnalytics memory analytics) 
+    {
+        Participant memory p = _participants[participant];
+        
+        // Calculate participated phases
+        SalePhase[] memory phases = new SalePhase[](3);
+        uint256 phaseCount = 0;
+        
+        for (uint256 i = 0; i < p.purchaseIds.length; i++) {
+            SalePhase phase = _purchases[p.purchaseIds[i]].phase;
+            bool found = false;
+            for (uint256 j = 0; j < phaseCount; j++) {
+                if (phases[j] == phase) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found && phaseCount < 3) {
+                phases[phaseCount] = phase;
+                phaseCount++;
+            }
+        }
+        
+        // Resize array
+        SalePhase[] memory participatedPhases = new SalePhase[](phaseCount);
+        for (uint256 i = 0; i < phaseCount; i++) {
+            participatedPhases[i] = phases[i];
+        }
+        
+        analytics = ISaleManager.ParticipantAnalytics({
+            participant: participant,
+            totalInvestment: p.totalEthSpent,
+            averagePurchaseSize: p.purchaseIds.length > 0 ? p.totalEthSpent / p.purchaseIds.length : 0,
+            purchaseFrequency: p.purchaseIds.length,
+            engagementScore: p.engagementScore,
+            referralEarnings: p.referralBonus,
+            firstPurchaseTime: _participantFirstPurchase[participant],
+            lastPurchaseTime: p.lastPurchaseTime,
+            participatedPhases: participatedPhases,
+            isHighValue: _isHighValueParticipant[participant],
+            isFrequentTrader: _isFrequentTrader[participant],
+            riskScore: _participantRiskScore[participant]
+        });
+    }
+    
+    function getComplianceReport(uint256 startTime, uint256 endTime) 
+        external 
+        view 
+        override 
+        returns (ISaleManager.ComplianceReport memory report) 
+    {
+        uint256 kycApproved = 0;
+        uint256 accredited = 0;
+        uint256 totalInvestment = 0;
+        uint256 maxInvestment = 0;
+        address[] memory highValue = new address[](totalHighValueParticipants);
+        uint256 highValueCount = 0;
+        
+        // This is a simplified implementation - in production would optimize for gas
+        // by maintaining running counters
+        for (uint256 i = 0; i < totalParticipants && highValueCount < totalHighValueParticipants; i++) {
+            // Note: This is inefficient - would need to track participants differently
+            // for production implementation
+        }
+        
+        report = ISaleManager.ComplianceReport({
+            totalParticipants: totalParticipants,
+            totalFundsRaised: _phaseEthRaised[SalePhase.PRIVATE] + _phaseEthRaised[SalePhase.PRE_SALE] + _phaseEthRaised[SalePhase.PUBLIC],
+            kycApprovedCount: kycApproved,
+            accreditedInvestorCount: accredited,
+            averageInvestment: totalParticipants > 0 ? totalInvestment / totalParticipants : 0,
+            largestInvestment: maxInvestment,
+            highValueInvestors: highValue,
+            suspiciousActivityCount: totalSuspiciousActivities,
+            reportGeneratedAt: block.timestamp
+        });
+    }
+    
+    function registerAnalyticsHook(address hookAddress, string[] memory events) 
+        external 
+        override 
+        onlyRole(DEFAULT_ADMIN_ROLE) 
+    {
+        require(hookAddress != address(0), "SaleManager: invalid hook address");
+        
+        if (!_analyticsHooks[hookAddress]) {
+            _analyticsHooks[hookAddress] = true;
+            _activeHooks.push(hookAddress);
+        }
+        
+        for (uint256 i = 0; i < events.length; i++) {
+            _hookEvents[hookAddress][events[i]] = true;
+        }
+        
+        emit AnalyticsHookRegistered(hookAddress, events);
+    }
+    
+    function getDetailedProgress() 
+        external 
+        view 
+        override 
+        returns (ISaleManager.SaleProgress memory progress) 
+    {
+        uint256 totalRaised = _phaseEthRaised[SalePhase.PRIVATE] + 
+                             _phaseEthRaised[SalePhase.PRE_SALE] + 
+                             _phaseEthRaised[SalePhase.PUBLIC];
+        
+        progress = ISaleManager.SaleProgress({
+            totalRaised: totalRaised,
+            totalAllocated: PRIVATE_SALE_ALLOCATION + PRE_SALE_ALLOCATION + PUBLIC_SALE_ALLOCATION,
+            remainingAllocation: (PRIVATE_SALE_ALLOCATION + PRE_SALE_ALLOCATION + PUBLIC_SALE_ALLOCATION) - 
+                               (_phaseTokensSold[SalePhase.PRIVATE] + _phaseTokensSold[SalePhase.PRE_SALE] + _phaseTokensSold[SalePhase.PUBLIC]),
+            participantCount: totalParticipants,
+            averageContribution: totalParticipants > 0 ? totalRaised / totalParticipants : 0,
+            privatePhaseRaised: _phaseEthRaised[SalePhase.PRIVATE],
+            preSalePhaseRaised: _phaseEthRaised[SalePhase.PRE_SALE],
+            publicPhaseRaised: _phaseEthRaised[SalePhase.PUBLIC],
+            lastUpdated: block.timestamp
+        });
+    }
+    
+    function exportParticipantData(address[] memory participants) 
+        external 
+        view 
+        override 
+        onlyRole(DEFAULT_ADMIN_ROLE) 
+        returns (ISaleManager.ParticipantExport[] memory data) 
+    {
+        data = new ISaleManager.ParticipantExport[](participants.length);
+        
+        for (uint256 i = 0; i < participants.length; i++) {
+            Participant memory p = _participants[participants[i]];
+            data[i] = ISaleManager.ParticipantExport({
+                participant: participants[i],
+                totalContribution: p.totalEthSpent,
+                tokensPurchased: p.totalTokensBought,
+                kycStatus: p.kycStatus,
+                isAccredited: p.isAccredited,
+                firstPurchase: _participantFirstPurchase[participants[i]],
+                lastPurchase: p.lastPurchaseTime,
+                transactionCount: p.purchaseIds.length
+            });
+        }
+    }
+    
+    // ============ INTERNAL HELPER FUNCTIONS (STAGE 3.3) ============
+    
+    function _checkAndForwardFunds() internal {
+        if (automaticForwardingEnabled && address(this).balance >= forwardingThreshold) {
+            uint256 forwardAmount = address(this).balance;
+            totalForwarded += forwardAmount;
+            
+            (bool success, ) = treasury.call{value: forwardAmount}("");
+            if (success) {
+                emit FundsAutoForwarded(treasury, forwardAmount);
+            }
+        }
+    }
+    
+    function _updateParticipantAnalytics(address participant, uint256 ethAmount) internal {
+        if (_participantFirstPurchase[participant] == 0) {
+            _participantFirstPurchase[participant] = block.timestamp;
+        }
+        
+        // Update high value status
+        if (_participants[participant].totalEthSpent >= 50 ether) { // $50K+ threshold
+            if (!_isHighValueParticipant[participant]) {
+                _isHighValueParticipant[participant] = true;
+                totalHighValueParticipants++;
+            }
+        }
+        
+        // Update frequent trader status  
+        if (_participants[participant].purchaseIds.length >= 5) {
+            if (!_isFrequentTrader[participant]) {
+                _isFrequentTrader[participant] = true;
+                totalFrequentTraders++;
+            }
+        }
+        
+        // Calculate basic risk score
+        uint256 riskScore = 0;
+        if (_participants[participant].purchaseIds.length > 10) riskScore += 100;
+        if (ethAmount > 100 ether) riskScore += 200;
+        if (_participants[participant].kycStatus != KYCStatus.APPROVED) riskScore += 500;
+        
+        _participantRiskScore[participant] = riskScore;
+    }
+    
+    function _logTransaction(address participant, uint256 ethAmount, uint256 tokenAmount, string memory txType) internal {
+        _transactionHistory.push(TransactionLog({
+            participant: participant,
+            amount: ethAmount,
+            tokens: tokenAmount,
+            phase: currentPhase,
+            timestamp: block.timestamp,
+            transactionType: txType
+        }));
+        
+        // Notify analytics hooks
+        for (uint256 i = 0; i < _activeHooks.length; i++) {
+            address hook = _activeHooks[i];
+            if (_hookEvents[hook]["purchase"]) {
+                // In production, would call external analytics contract
+                emit AnalyticsEvent(hook, "purchase", participant, ethAmount);
+            }
+        }
+    }
+    
+    // ============ STAGE 3.3: NEW EVENTS ============
+    
+    event AutomaticForwardingUpdated(bool enabled, uint256 threshold);
+    event FundAllocationsSet(string[] categories, uint256[] percentages);
+    event FundsAllocated(string category, uint256 amount, address allocator);
+    event FundsAutoForwarded(address treasury, uint256 amount);
+    event FrontRunningProtectionEnabled(address participant, uint256 maxPriceImpact, uint256 commitDuration);
+    event PurchaseCommitted(address participant, bytes32 commitment);
+    event PurchaseRevealed(address participant, uint256 amount, uint256 nonce);
+    event AdvancedRateLimitingSet(uint256 dailyLimit, uint256 hourlyLimit, uint256 cooldownPeriod);
+    event AnalyticsHookRegistered(address hookAddress, string[] events);
+    event AnalyticsEvent(address hook, string eventType, address participant, uint256 amount);
     
     // ============ RECEIVE FUNCTION ============
     

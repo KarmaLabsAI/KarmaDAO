@@ -447,4 +447,175 @@ interface ISaleManager {
      * @param liquidityConfig Uniswap V3 configuration
      */
     function configurePublicSale(uint256 startTime, LiquidityConfig memory liquidityConfig) external;
+    
+    // ============ STAGE 3.3: TREASURY INTEGRATION ============
+    
+    /**
+     * @dev Enable/disable automatic ETH forwarding to treasury
+     * @param enabled Whether to automatically forward funds
+     * @param forwardingThreshold Minimum amount to trigger forwarding
+     */
+    function setAutomaticForwarding(bool enabled, uint256 forwardingThreshold) external;
+    
+    /**
+     * @dev Get treasury fund allocation by category
+     * @param category Allocation category (marketing, development, etc.)
+     * @return allocated Amount allocated to category
+     * @return spent Amount already spent from category
+     */
+    function getFundAllocation(string memory category) external view returns (uint256 allocated, uint256 spent);
+    
+    /**
+     * @dev Set fund allocation percentages for different categories
+     * @param categories Array of category names
+     * @param percentages Array of percentages (basis points)
+     */
+    function setFundAllocations(string[] memory categories, uint256[] memory percentages) external;
+    
+    /**
+     * @dev Allocate funds to specific category
+     * @param category Category to allocate to
+     * @param amount Amount in ETH to allocate
+     */
+    function allocateFunds(string memory category, uint256 amount) external;
+    
+    // ============ STAGE 3.3: SECURITY AND ANTI-ABUSE ============
+    
+    /**
+     * @dev Enable front-running protection for participant
+     * @param maxPriceImpact Maximum allowed price impact in basis points
+     * @param commitDuration How long to commit before reveal (seconds)
+     */
+    function enableFrontRunningProtection(uint256 maxPriceImpact, uint256 commitDuration) external;
+    
+    /**
+     * @dev Commit to purchase with front-running protection
+     * @param commitment Hash commitment for purchase
+     */
+    function commitPurchase(bytes32 commitment) external;
+    
+    /**
+     * @dev Reveal and execute committed purchase
+     * @param merkleProof Merkle proof for whitelist
+     * @param nonce Random nonce used in commitment
+     */
+    function revealPurchase(bytes32[] memory merkleProof, uint256 nonce) external payable;
+    
+    /**
+     * @dev Set advanced rate limiting parameters
+     * @param dailyLimit Maximum ETH per participant per day
+     * @param hourlyLimit Maximum ETH per participant per hour
+     * @param cooldownPeriod Cooldown period between large purchases
+     */
+    function setAdvancedRateLimiting(uint256 dailyLimit, uint256 hourlyLimit, uint256 cooldownPeriod) external;
+    
+    // ============ STAGE 3.3: REPORTING AND ANALYTICS ============
+    
+    /**
+     * @dev Get detailed participant analytics
+     * @param participant Address to analyze
+     * @return analytics Comprehensive participant analytics
+     */
+    function getParticipantAnalytics(address participant) 
+        external 
+        view 
+        returns (ParticipantAnalytics memory analytics);
+    
+    /**
+     * @dev Get compliance report for regulatory requirements
+     * @param startTime Start of reporting period
+     * @param endTime End of reporting period
+     * @return report Compliance report data
+     */
+    function getComplianceReport(uint256 startTime, uint256 endTime) 
+        external 
+        view 
+        returns (ComplianceReport memory report);
+    
+    /**
+     * @dev Register external analytics hook
+     * @param hookAddress Address of analytics contract
+     * @param events Array of event types to forward
+     */
+    function registerAnalyticsHook(address hookAddress, string[] memory events) external;
+    
+    /**
+     * @dev Get real-time sale progress with allocation breakdown
+     * @return progress Detailed progress metrics
+     */
+    function getDetailedProgress() external view returns (SaleProgress memory progress);
+    
+    /**
+     * @dev Export participant data for compliance (admin only)
+     * @param participants Array of participant addresses
+     * @return data Exported participant data
+     */
+    function exportParticipantData(address[] memory participants) 
+        external 
+        view 
+        returns (ParticipantExport[] memory data);
+        
+    // ============ STAGE 3.3: NEW STRUCTS ============
+
+    /**
+     * @dev Comprehensive participant analytics (Stage 3.3)
+     */
+    struct ParticipantAnalytics {
+        address participant;
+        uint256 totalInvestment;
+        uint256 averagePurchaseSize;
+        uint256 purchaseFrequency;
+        uint256 engagementScore;
+        uint256 referralEarnings;
+        uint256 firstPurchaseTime;
+        uint256 lastPurchaseTime;
+        SalePhase[] participatedPhases;
+        bool isHighValue;
+        bool isFrequentTrader;
+        uint256 riskScore;
+    }
+
+    /**
+     * @dev Compliance report structure (Stage 3.3)
+     */
+    struct ComplianceReport {
+        uint256 totalParticipants;
+        uint256 totalFundsRaised;
+        uint256 kycApprovedCount;
+        uint256 accreditedInvestorCount;
+        uint256 averageInvestment;
+        uint256 largestInvestment;
+        address[] highValueInvestors;
+        uint256 suspiciousActivityCount;
+        uint256 reportGeneratedAt;
+    }
+
+    /**
+     * @dev Detailed sale progress metrics (Stage 3.3)
+     */
+    struct SaleProgress {
+        uint256 totalRaised;
+        uint256 totalAllocated;
+        uint256 remainingAllocation;
+        uint256 participantCount;
+        uint256 averageContribution;
+        uint256 privatePhaseRaised;
+        uint256 preSalePhaseRaised;
+        uint256 publicPhaseRaised;
+        uint256 lastUpdated;
+    }
+
+    /**
+     * @dev Participant data export structure (Stage 3.3)
+     */
+    struct ParticipantExport {
+        address participant;
+        uint256 totalContribution;
+        uint256 tokensPurchased;
+        KYCStatus kycStatus;
+        bool isAccredited;
+        uint256 firstPurchase;
+        uint256 lastPurchase;
+        uint256 transactionCount;
+    }
 } 

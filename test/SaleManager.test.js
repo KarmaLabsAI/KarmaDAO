@@ -524,3 +524,295 @@ describe("SaleManager (Stage 3.2)", function () {
         });
     });
 });
+
+// ============ STAGE 3.3: REVENUE AND FUND MANAGEMENT TESTS ============
+
+describe("Stage 3.3: Treasury Integration", function () {
+    beforeEach(async function () {
+        // Configure private sale for testing
+        const startTime = Math.floor(Date.now() / 1000) + 100;
+        await saleManager.configurePrivateSale(startTime, merkleRoot);
+        await saleManager.activatePhase(ISaleManager.SalePhase.PRIVATE);
+        
+        // Set up KYC for buyer
+        await saleManager.connect(kycManager).updateKYCStatus(buyer1.address, 1); // APPROVED
+        await saleManager.connect(kycManager).setAccreditedStatus(buyer1.address, true);
+    });
+    
+    it("Should enable automatic fund forwarding", async function () {
+        const threshold = ethers.parseEther("10");
+        
+        await expect(saleManager.setAutomaticForwarding(true, threshold))
+            .to.emit(saleManager, "AutomaticForwardingUpdated")
+            .withArgs(true, threshold);
+        
+        expect(await saleManager.automaticForwardingEnabled()).to.equal(true);
+        expect(await saleManager.forwardingThreshold()).to.equal(threshold);
+    });
+    
+    it("Should automatically forward funds when threshold is reached", async function () {
+        const threshold = ethers.parseEther("5");
+        await saleManager.setAutomaticForwarding(true, threshold);
+        
+        const initialTreasuryBalance = await ethers.provider.getBalance(treasury.address);
+        
+        // Make purchase above threshold
+        await expect(saleManager.connect(buyer1).purchaseTokens(validProof, { value: ethers.parseEther("10") }))
+            .to.emit(saleManager, "FundsAutoForwarded");
+        
+        const finalTreasuryBalance = await ethers.provider.getBalance(treasury.address);
+        expect(finalTreasuryBalance).to.be.greaterThan(initialTreasuryBalance);
+    });
+    
+    it("Should set and track fund allocations", async function () {
+        const categories = ["marketing", "development", "operations"];
+        const percentages = [3000, 4000, 3000]; // 30%, 40%, 30%
+        
+        await expect(saleManager.setFundAllocations(categories, percentages))
+            .to.emit(saleManager, "FundAllocationsSet")
+            .withArgs(categories, percentages);
+        
+        const [allocated, spent] = await saleManager.getFundAllocation("marketing");
+        expect(allocated).to.be.greaterThan(0);
+        expect(spent).to.equal(0);
+    });
+    
+    it("Should allocate funds to specific categories", async function () {
+        // First set up allocations
+        await saleManager.setFundAllocations(["marketing"], [10000]);
+        
+        // Add some funds to contract
+        await saleManager.connect(buyer1).purchaseTokens(validProof, { value: ethers.parseEther("10") });
+        
+        const allocationAmount = ethers.parseEther("1");
+        await expect(saleManager.allocateFunds("marketing", allocationAmount))
+            .to.emit(saleManager, "FundsAllocated")
+            .withArgs("marketing", allocationAmount, owner.address);
+        
+        const [, spent] = await saleManager.getFundAllocation("marketing");
+        expect(spent).to.equal(allocationAmount);
+    });
+    
+    it("Should reject allocation to non-existent category", async function () {
+        await expect(saleManager.allocateFunds("nonexistent", ethers.parseEther("1")))
+            .to.be.revertedWith("SaleManager: category not exists");
+    });
+    
+    it("Should reject excessive allocation", async function () {
+        await saleManager.setFundAllocations(["test"], [10000]);
+        
+        await expect(saleManager.allocateFunds("test", ethers.parseEther("1000")))
+            .to.be.revertedWith("SaleManager: insufficient allocation");
+    });
+});
+
+describe("Stage 3.3: Security and Anti-Abuse", function () {
+    beforeEach(async function () {
+        const startTime = Math.floor(Date.now() / 1000) + 100;
+        await saleManager.configurePrivateSale(startTime, merkleRoot);
+        await saleManager.activatePhase(ISaleManager.SalePhase.PRIVATE);
+        
+        await saleManager.connect(kycManager).updateKYCStatus(buyer1.address, 1);
+        await saleManager.connect(kycManager).setAccreditedStatus(buyer1.address, true);
+    });
+    
+    it("Should enable front-running protection", async function () {
+        const maxPriceImpact = 500; // 5%
+        const commitDuration = 300; // 5 minutes
+        
+        await expect(saleManager.connect(buyer1).enableFrontRunningProtection(maxPriceImpact, commitDuration))
+            .to.emit(saleManager, "FrontRunningProtectionEnabled")
+            .withArgs(buyer1.address, maxPriceImpact, commitDuration);
+    });
+    
+    it("Should allow commit-reveal purchase flow", async function () {
+        await saleManager.connect(buyer1).enableFrontRunningProtection(500, 300);
+        
+        const nonce = 12345;
+        const purchaseAmount = ethers.parseEther("5");
+        const commitment = ethers.keccak256(
+            ethers.solidityPacked(["address", "uint256", "uint256"], [buyer1.address, purchaseAmount, nonce])
+        );
+        
+        // Commit
+        await expect(saleManager.connect(buyer1).commitPurchase(commitment))
+            .to.emit(saleManager, "PurchaseCommitted")
+            .withArgs(buyer1.address, commitment);
+        
+        // Fast forward time
+        await ethers.provider.send("evm_increaseTime", [301]);
+        await ethers.provider.send("evm_mine");
+        
+        // Reveal
+        await expect(saleManager.connect(buyer1).revealPurchase(validProof, nonce, { value: purchaseAmount }))
+            .to.emit(saleManager, "PurchaseRevealed")
+            .withArgs(buyer1.address, purchaseAmount, nonce);
+    });
+    
+    it("Should reject early reveal", async function () {
+        await saleManager.connect(buyer1).enableFrontRunningProtection(500, 300);
+        
+        const nonce = 12345;
+        const commitment = ethers.keccak256(
+            ethers.solidityPacked(["address", "uint256", "uint256"], [buyer1.address, ethers.parseEther("5"), nonce])
+        );
+        
+        await saleManager.connect(buyer1).commitPurchase(commitment);
+        
+        await expect(saleManager.connect(buyer1).revealPurchase(validProof, nonce, { value: ethers.parseEther("5") }))
+            .to.be.revertedWith("SaleManager: commit period not ended");
+    });
+    
+    it("Should reject invalid commitment reveal", async function () {
+        await saleManager.connect(buyer1).enableFrontRunningProtection(500, 300);
+        
+        const nonce = 12345;
+        const wrongCommitment = ethers.keccak256(
+            ethers.solidityPacked(["address", "uint256", "uint256"], [buyer1.address, ethers.parseEther("10"), nonce])
+        );
+        
+        await saleManager.connect(buyer1).commitPurchase(wrongCommitment);
+        
+        await ethers.provider.send("evm_increaseTime", [301]);
+        await ethers.provider.send("evm_mine");
+        
+        await expect(saleManager.connect(buyer1).revealPurchase(validProof, nonce, { value: ethers.parseEther("5") }))
+            .to.be.revertedWith("SaleManager: invalid commitment");
+    });
+    
+    it("Should set advanced rate limiting", async function () {
+        const dailyLimit = ethers.parseEther("100");
+        const hourlyLimit = ethers.parseEther("10");
+        const cooldownPeriod = 3600; // 1 hour
+        
+        await expect(saleManager.setAdvancedRateLimiting(dailyLimit, hourlyLimit, cooldownPeriod))
+            .to.emit(saleManager, "AdvancedRateLimitingSet")
+            .withArgs(dailyLimit, hourlyLimit, cooldownPeriod);
+    });
+});
+
+describe("Stage 3.3: Reporting and Analytics", function () {
+    beforeEach(async function () {
+        const startTime = Math.floor(Date.now() / 1000) + 100;
+        await saleManager.configurePrivateSale(startTime, merkleRoot);
+        await saleManager.activatePhase(ISaleManager.SalePhase.PRIVATE);
+        
+        await saleManager.connect(kycManager).updateKYCStatus(buyer1.address, 1);
+        await saleManager.connect(kycManager).setAccreditedStatus(buyer1.address, true);
+    });
+    
+    it("Should provide detailed participant analytics", async function () {
+        // Make a purchase to generate analytics data
+        await saleManager.connect(buyer1).purchaseTokens(validProof, { value: ethers.parseEther("10") });
+        
+        const analytics = await saleManager.getParticipantAnalytics(buyer1.address);
+        expect(analytics.participant).to.equal(buyer1.address);
+        expect(analytics.totalInvestment).to.equal(ethers.parseEther("10"));
+        expect(analytics.purchaseFrequency).to.equal(1);
+        expect(analytics.firstPurchaseTime).to.be.greaterThan(0);
+        expect(analytics.participatedPhases).to.have.length(1);
+    });
+    
+    it("Should generate compliance reports", async function () {
+        const startTime = Math.floor(Date.now() / 1000);
+        const endTime = startTime + 86400; // 24 hours later
+        
+        const report = await saleManager.getComplianceReport(startTime, endTime);
+        expect(report.totalParticipants).to.equal(0); // No purchases yet
+        expect(report.totalFundsRaised).to.equal(0);
+        expect(report.reportGeneratedAt).to.be.greaterThan(startTime);
+    });
+    
+    it("Should register analytics hooks", async function () {
+        const hookAddress = buyer2.address; // Using buyer2 as mock analytics contract
+        const events = ["purchase", "kyc"];
+        
+        await expect(saleManager.registerAnalyticsHook(hookAddress, events))
+            .to.emit(saleManager, "AnalyticsHookRegistered")
+            .withArgs(hookAddress, events);
+    });
+    
+    it("Should provide detailed sale progress", async function () {
+        const progress = await saleManager.getDetailedProgress();
+        expect(progress.totalRaised).to.equal(0);
+        expect(progress.participantCount).to.equal(0);
+        expect(progress.privatePhaseRaised).to.equal(0);
+        expect(progress.preSalePhaseRaised).to.equal(0);
+        expect(progress.publicPhaseRaised).to.equal(0);
+        expect(progress.lastUpdated).to.be.greaterThan(0);
+    });
+    
+    it("Should export participant data for compliance", async function () {
+        // Make a purchase first
+        await saleManager.connect(buyer1).purchaseTokens(validProof, { value: ethers.parseEther("5") });
+        
+        const participants = [buyer1.address];
+        const exportData = await saleManager.exportParticipantData(participants);
+        
+        expect(exportData).to.have.length(1);
+        expect(exportData[0].participant).to.equal(buyer1.address);
+        expect(exportData[0].totalContribution).to.equal(ethers.parseEther("5"));
+        expect(exportData[0].transactionCount).to.equal(1);
+    });
+    
+    it("Should track high-value participants", async function () {
+        // Make a large purchase to trigger high-value status
+        await saleManager.connect(buyer1).purchaseTokens(validProof, { value: ethers.parseEther("60") }); // Above 50 ETH threshold
+        
+        const analytics = await saleManager.getParticipantAnalytics(buyer1.address);
+        expect(analytics.isHighValue).to.equal(true);
+        
+        const totalHighValue = await saleManager.totalHighValueParticipants();
+        expect(totalHighValue).to.equal(1);
+    });
+    
+    it("Should calculate risk scores", async function () {
+        await saleManager.connect(buyer1).purchaseTokens(validProof, { value: ethers.parseEther("110") }); // Large purchase
+        
+        const analytics = await saleManager.getParticipantAnalytics(buyer1.address);
+        expect(analytics.riskScore).to.be.greaterThan(0); // Should have risk score for large purchase
+    });
+});
+
+describe("Stage 3.3: Integration Tests", function () {
+    it("Should handle complete purchase flow with all Stage 3.3 features", async function () {
+        // Set up automatic forwarding
+        await saleManager.setAutomaticForwarding(true, ethers.parseEther("5"));
+        
+        // Set up fund allocations
+        await saleManager.setFundAllocations(["marketing", "development"], [5000, 5000]);
+        
+        // Configure sale
+        const startTime = Math.floor(Date.now() / 1000) + 100;
+        await saleManager.configurePrivateSale(startTime, merkleRoot);
+        await saleManager.activatePhase(ISaleManager.SalePhase.PRIVATE);
+        
+        // Set up buyer
+        await saleManager.connect(kycManager).updateKYCStatus(buyer1.address, 1);
+        await saleManager.connect(kycManager).setAccreditedStatus(buyer1.address, true);
+        
+        // Register analytics hook
+        await saleManager.registerAnalyticsHook(buyer2.address, ["purchase"]);
+        
+        const initialTreasuryBalance = await ethers.provider.getBalance(treasury.address);
+        
+        // Make purchase that triggers all Stage 3.3 features
+        await expect(saleManager.connect(buyer1).purchaseTokens(validProof, { value: ethers.parseEther("10") }))
+            .to.emit(saleManager, "TokenPurchase")
+            .and.to.emit(saleManager, "FundsAutoForwarded")
+            .and.to.emit(saleManager, "AnalyticsEvent");
+        
+        // Verify automatic forwarding worked
+        const finalTreasuryBalance = await ethers.provider.getBalance(treasury.address);
+        expect(finalTreasuryBalance).to.be.greaterThan(initialTreasuryBalance);
+        
+        // Verify analytics updated
+        const analytics = await saleManager.getParticipantAnalytics(buyer1.address);
+        expect(analytics.totalInvestment).to.equal(ethers.parseEther("10"));
+        
+        // Verify progress tracking
+        const progress = await saleManager.getDetailedProgress();
+        expect(progress.totalRaised).to.equal(ethers.parseEther("10"));
+        expect(progress.participantCount).to.equal(1);
+    });
+});
