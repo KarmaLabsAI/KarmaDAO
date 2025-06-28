@@ -90,6 +90,86 @@ contract KarmaStaking is AccessControl, Pausable, ReentrancyGuard {
         uint256 lastUpdateTime;  // Last reward calculation update
     }
     
+    // ============ STAGE 7.2 ENHANCED FEATURES ============
+    
+    // Additional role for Stage 7.2
+    bytes32 public constant SLASHING_MANAGER_ROLE = keccak256("SLASHING_MANAGER_ROLE");
+    bytes32 public constant GOVERNANCE_REWARD_MANAGER_ROLE = keccak256("GOVERNANCE_REWARD_MANAGER_ROLE");
+    
+    // Staking tier system constants
+    uint256 public constant BRONZE_TIER_THRESHOLD = 10_000 * 1e18;  // 10K KARMA
+    uint256 public constant SILVER_TIER_THRESHOLD = 50_000 * 1e18;  // 50K KARMA  
+    uint256 public constant GOLD_TIER_THRESHOLD = 100_000 * 1e18;   // 100K KARMA
+    uint256 public constant DIAMOND_TIER_THRESHOLD = 500_000 * 1e18; // 500K KARMA
+    
+    // Governance participation tracking
+    uint256 public constant GOVERNANCE_REWARD_MULTIPLIER = 150; // 1.5x multiplier for active governance
+    uint256 public constant SLASHING_PENALTY_BASE = 500; // 5% base slashing penalty
+    uint256 public constant MAX_SLASHING_PENALTY = 2500; // 25% maximum slashing
+    
+    // ============ ENHANCED ENUMS ============
+    
+    enum StakingTier {
+        NONE,     // No tier (below threshold)
+        BRONZE,   // 10K+ KARMA
+        SILVER,   // 50K+ KARMA  
+        GOLD,     // 100K+ KARMA
+        DIAMOND   // 500K+ KARMA
+    }
+    
+    enum SlashingReason {
+        MALICIOUS_PROPOSAL,     // Creating malicious proposals
+        VOTING_MANIPULATION,    // Attempted vote manipulation
+        GOVERNANCE_SPAM,        // Spamming governance with low-quality proposals
+        COORDINATED_ATTACK,     // Participating in coordinated attacks
+        VIOLATION_OF_RULES     // General violation of governance rules
+    }
+    
+    // ============ ENHANCED STRUCTS ============
+    
+    struct GovernanceParticipation {
+        uint256 proposalsCreated;
+        uint256 proposalsVoted;
+        uint256 totalVoteWeight;
+        uint256 lastActivity;
+        uint256 reputationScore;
+        uint256 governanceRewards;
+        uint256 slashingHistory;
+        bool isActiveParticipant;
+        StakingTier currentTier;
+    }
+    
+    struct SlashingRecord {
+        uint256 slashingId;
+        address slashedUser;
+        SlashingReason reason;
+        uint256 amount;
+        uint256 timestamp;
+        address slasher;
+        string evidence;
+        bool isActive;
+        uint256 recoveryTime; // When user can recover from slashing
+    }
+    
+    struct TierBenefits {
+        uint256 votingPowerMultiplier;  // Additional voting power multiplier
+        uint256 proposalThresholdReduction; // Reduction in proposal threshold
+        uint256 rewardMultiplier;       // Additional reward multiplier
+        uint256 slashingProtection;     // Protection against slashing
+        bool canCreateEmergencyProposals; // Can create emergency proposals
+        bool canParticipateInOversight;   // Can participate in community oversight
+    }
+    
+    struct GovernanceRewardConfig {
+        uint256 baseRewardRate;         // Base reward per governance action
+        uint256 proposalCreationReward; // Reward for creating quality proposals
+        uint256 votingReward;           // Reward for voting on proposals
+        uint256 qualityBonusMultiplier; // Multiplier for high-quality participation
+        uint256 totalGovernancePool;    // Total governance reward pool
+        uint256 distributedGovernanceRewards; // Already distributed rewards
+        uint256 lastDistributionTime;   // Last reward distribution
+    }
+    
     // ============ STATE VARIABLES ============
     
     // Core contracts
@@ -117,6 +197,28 @@ contract KarmaStaking is AccessControl, Pausable, ReentrancyGuard {
     // Anti-spam and quality controls
     mapping(address => uint256) public lastStakeTime;
     uint256 public constant STAKE_COOLDOWN = 1 hours;
+    
+    // Governance participation tracking
+    mapping(address => GovernanceParticipation) private _governanceParticipation;
+    mapping(address => StakingTier) public userTiers;
+    mapping(StakingTier => TierBenefits) public tierBenefits;
+    
+    // Slashing system
+    mapping(uint256 => SlashingRecord) private _slashingRecords;
+    mapping(address => uint256[]) public userSlashingHistory;
+    mapping(address => uint256) public totalSlashedAmount;
+    mapping(address => uint256) public slashingRecoveryTime;
+    uint256 public totalSlashingRecords;
+    
+    // Governance rewards
+    GovernanceRewardConfig public governanceRewardConfig;
+    mapping(address => uint256) public unclaimedGovernanceRewards;
+    mapping(address => uint256) public totalGovernanceRewardsEarned;
+    
+    // Enhanced metrics
+    mapping(address => uint256) public governanceActivityScore;
+    mapping(address => uint256) public consecutiveParticipationDays;
+    mapping(address => uint256) public lastGovernanceActivity;
     
     // ============ EVENTS ============
     
@@ -161,6 +263,47 @@ contract KarmaStaking is AccessControl, Pausable, ReentrancyGuard {
         uint256 totalRewardPool
     );
     
+    event TierUpgraded(
+        address indexed user,
+        StakingTier indexed oldTier,
+        StakingTier indexed newTier,
+        uint256 timestamp
+    );
+    
+    event GovernanceRewardEarned(
+        address indexed user,
+        uint256 amount,
+        string activityType,
+        uint256 timestamp
+    );
+    
+    event GovernanceRewardClaimed(
+        address indexed user,
+        uint256 amount,
+        uint256 timestamp
+    );
+    
+    event UserSlashed(
+        uint256 indexed slashingId,
+        address indexed user,
+        SlashingReason indexed reason,
+        uint256 amount,
+        address slasher
+    );
+    
+    event SlashingAppealed(
+        uint256 indexed slashingId,
+        address indexed user,
+        string appealReason
+    );
+    
+    event GovernanceParticipationUpdated(
+        address indexed user,
+        uint256 proposalsCreated,
+        uint256 proposalsVoted,
+        uint256 reputationScore
+    );
+    
     // ============ MODIFIERS ============
     
     modifier onlyStakingManager() {
@@ -183,6 +326,16 @@ contract KarmaStaking is AccessControl, Pausable, ReentrancyGuard {
         _;
     }
     
+    modifier onlySlashingManager() {
+        require(hasRole(SLASHING_MANAGER_ROLE, msg.sender), "KarmaStaking: caller is not slashing manager");
+        _;
+    }
+    
+    modifier onlyGovernanceRewardManager() {
+        require(hasRole(GOVERNANCE_REWARD_MANAGER_ROLE, msg.sender), "KarmaStaking: caller is not governance reward manager");
+        _;
+    }
+    
     modifier respectsCooldown() {
         require(
             block.timestamp >= lastStakeTime[msg.sender] + STAKE_COOLDOWN,
@@ -199,6 +352,22 @@ contract KarmaStaking is AccessControl, Pausable, ReentrancyGuard {
     modifier activeStake(uint256 stakeId) {
         require(_stakes[stakeId].isActive, "KarmaStaking: stake not active");
         require(_stakes[stakeId].amount > 0, "KarmaStaking: invalid stake");
+        _;
+    }
+    
+    modifier notSlashed() {
+        require(
+            slashingRecoveryTime[msg.sender] <= block.timestamp,
+            "KarmaStaking: user is currently slashed"
+        );
+        _;
+    }
+    
+    modifier validSlashingRecord(uint256 slashingId) {
+        require(
+            slashingId > 0 && slashingId <= totalSlashingRecords,
+            "KarmaStaking: invalid slashing record"
+        );
         _;
     }
     
@@ -637,5 +806,412 @@ contract KarmaStaking is AccessControl, Pausable, ReentrancyGuard {
         if (oldPower != newPower) {
             emit VotingPowerUpdated(user, oldPower, newPower, block.number);
         }
+    }
+    
+    // ============ STAGE 7.2 ENHANCED FUNCTIONS ============
+    
+    /**
+     * @dev Initialize Stage 7.2 enhanced features
+     */
+    function initializeStage72Features(address admin) external onlyStakingManager {
+        // Grant new roles
+        _grantRole(SLASHING_MANAGER_ROLE, admin);
+        _grantRole(GOVERNANCE_REWARD_MANAGER_ROLE, admin);
+        
+        // Initialize tier benefits
+        _initializeTierBenefits();
+        
+        // Initialize governance reward config
+        governanceRewardConfig = GovernanceRewardConfig({
+            baseRewardRate: 100 * 1e18,        // 100 KARMA base reward
+            proposalCreationReward: 500 * 1e18, // 500 KARMA for proposals
+            votingReward: 10 * 1e18,            // 10 KARMA for voting
+            qualityBonusMultiplier: 200,        // 2x multiplier for quality
+            totalGovernancePool: 10_000_000 * 1e18, // 10M KARMA pool
+            distributedGovernanceRewards: 0,
+            lastDistributionTime: block.timestamp
+        });
+    }
+    
+    /**
+     * @dev Update user's governance participation
+     */
+    function updateGovernanceParticipation(
+        address user,
+        uint256 proposalsCreated,
+        uint256 proposalsVoted,
+        uint256 voteWeight,
+        uint256 reputationScore
+    ) external onlyGovernanceRewardManager notSlashed {
+        GovernanceParticipation storage participation = _governanceParticipation[user];
+        
+        // Update participation metrics
+        participation.proposalsCreated = proposalsCreated;
+        participation.proposalsVoted = proposalsVoted;
+        participation.totalVoteWeight += voteWeight;
+        participation.lastActivity = block.timestamp;
+        participation.reputationScore = reputationScore;
+        participation.isActiveParticipant = true;
+        
+        // Update activity tracking
+        lastGovernanceActivity[user] = block.timestamp;
+        governanceActivityScore[user] += 10; // Base activity points
+        
+        // Update consecutive participation
+        if (block.timestamp - lastGovernanceActivity[user] <= 1 days) {
+            consecutiveParticipationDays[user]++;
+        } else {
+            consecutiveParticipationDays[user] = 1;
+        }
+        
+        // Check for tier upgrade
+        _checkTierUpgrade(user);
+        
+        emit GovernanceParticipationUpdated(user, proposalsCreated, proposalsVoted, reputationScore);
+    }
+    
+    /**
+     * @dev Reward user for governance participation
+     */
+    function rewardGovernanceParticipation(
+        address user,
+        string memory activityType,
+        uint256 qualityScore
+    ) external onlyGovernanceRewardManager notSlashed returns (uint256 reward) {
+        require(isStaker[user], "KarmaStaking: user is not a staker");
+        
+        // Calculate base reward
+        uint256 baseReward;
+        if (keccak256(bytes(activityType)) == keccak256(bytes("proposal"))) {
+            baseReward = governanceRewardConfig.proposalCreationReward;
+        } else if (keccak256(bytes(activityType)) == keccak256(bytes("vote"))) {
+            baseReward = governanceRewardConfig.votingReward;
+        } else {
+            baseReward = governanceRewardConfig.baseRewardRate;
+        }
+        
+        // Apply tier multiplier
+        StakingTier tier = userTiers[user];
+        uint256 tierMultiplier = tierBenefits[tier].rewardMultiplier;
+        baseReward = (baseReward * tierMultiplier) / BASIS_POINTS;
+        
+        // Apply quality bonus
+        if (qualityScore > 8000) { // High quality (80%+)
+            baseReward = (baseReward * governanceRewardConfig.qualityBonusMultiplier) / BASIS_POINTS;
+        }
+        
+        // Apply consecutive participation bonus
+        uint256 consecutiveBonus = consecutiveParticipationDays[user] > 7 ? 150 : 100; // 1.5x after 7 days
+        baseReward = (baseReward * consecutiveBonus) / BASIS_POINTS;
+        
+        // Update reward tracking
+        unclaimedGovernanceRewards[user] += baseReward;
+        totalGovernanceRewardsEarned[user] += baseReward;
+        _governanceParticipation[user].governanceRewards += baseReward;
+        governanceRewardConfig.distributedGovernanceRewards += baseReward;
+        
+        emit GovernanceRewardEarned(user, baseReward, activityType, block.timestamp);
+        
+        return baseReward;
+    }
+    
+    /**
+     * @dev Claim governance rewards
+     */
+    function claimGovernanceRewards() external nonReentrant whenNotPaused notSlashed {
+        uint256 rewards = unclaimedGovernanceRewards[msg.sender];
+        require(rewards > 0, "KarmaStaking: no rewards to claim");
+        require(
+            governanceRewardConfig.distributedGovernanceRewards + rewards <= governanceRewardConfig.totalGovernancePool,
+            "KarmaStaking: insufficient governance reward pool"
+        );
+        
+        // Reset unclaimed rewards
+        unclaimedGovernanceRewards[msg.sender] = 0;
+        
+        // Transfer rewards (in practice, this would mint tokens or transfer from pool)
+        // karmaToken.transfer(msg.sender, rewards);
+        
+        emit GovernanceRewardClaimed(msg.sender, rewards, block.timestamp);
+    }
+    
+    /**
+     * @dev Slash user for malicious governance behavior
+     */
+    function slashUser(
+        address user,
+        SlashingReason reason,
+        uint256 penaltyPercentage,
+        string memory evidence
+    ) external onlySlashingManager whenNotPaused returns (uint256 slashingId) {
+        require(isStaker[user], "KarmaStaking: user is not a staker");
+        require(penaltyPercentage <= MAX_SLASHING_PENALTY, "KarmaStaking: penalty too high");
+        require(bytes(evidence).length > 0, "KarmaStaking: evidence required");
+        
+        UserStakeData storage userData = _userStakes[user];
+        uint256 slashAmount = (userData.totalStaked * penaltyPercentage) / BASIS_POINTS;
+        
+        // Apply tier protection
+        StakingTier tier = userTiers[user];
+        uint256 protection = tierBenefits[tier].slashingProtection;
+        slashAmount = (slashAmount * (BASIS_POINTS - protection)) / BASIS_POINTS;
+        
+        require(slashAmount > 0, "KarmaStaking: slashing amount must be greater than zero");
+        
+        totalSlashingRecords++;
+        slashingId = totalSlashingRecords;
+        
+        SlashingRecord storage record = _slashingRecords[slashingId];
+        record.slashingId = slashingId;
+        record.slashedUser = user;
+        record.reason = reason;
+        record.amount = slashAmount;
+        record.timestamp = block.timestamp;
+        record.slasher = msg.sender;
+        record.evidence = evidence;
+        record.isActive = true;
+        record.recoveryTime = block.timestamp + _getSlashingRecoveryTime(reason);
+        
+        // Update user tracking
+        userSlashingHistory[user].push(slashingId);
+        totalSlashedAmount[user] += slashAmount;
+        slashingRecoveryTime[user] = record.recoveryTime;
+        
+        // Reduce user's stake and voting power
+        userData.totalStaked -= slashAmount;
+        userData.totalVotingPower = _calculateUserTotalVotingPower(user);
+        
+        // Update governance participation
+        _governanceParticipation[user].slashingHistory++;
+        _governanceParticipation[user].reputationScore = _governanceParticipation[user].reputationScore > slashAmount ? 
+            _governanceParticipation[user].reputationScore - slashAmount : 0;
+        
+        // Update staking metrics
+        stakingMetrics.totalStaked -= slashAmount;
+        stakingMetrics.totalVotingPower = stakingMetrics.totalVotingPower > userData.totalVotingPower ? 
+            stakingMetrics.totalVotingPower - userData.totalVotingPower : 0;
+        
+        // Send slashed tokens to treasury (or burn them)
+        // karmaToken.transfer(treasury, slashAmount);
+        
+        emit UserSlashed(slashingId, user, reason, slashAmount, msg.sender);
+        
+        return slashingId;
+    }
+    
+    /**
+     * @dev Appeal a slashing decision
+     */
+    function appealSlashing(uint256 slashingId, string memory appealReason) 
+        external 
+        validSlashingRecord(slashingId) 
+    {
+        SlashingRecord storage record = _slashingRecords[slashingId];
+        require(record.slashedUser == msg.sender, "KarmaStaking: can only appeal own slashing");
+        require(record.isActive, "KarmaStaking: slashing already resolved");
+        require(bytes(appealReason).length > 0, "KarmaStaking: appeal reason required");
+        require(
+            block.timestamp <= record.timestamp + 7 days,
+            "KarmaStaking: appeal period expired"
+        );
+        
+        emit SlashingAppealed(slashingId, msg.sender, appealReason);
+    }
+    
+    /**
+     * @dev Resolve slashing appeal (admin function)
+     */
+    function resolveSlashingAppeal(
+        uint256 slashingId,
+        bool approved,
+        string memory resolution
+    ) external onlySlashingManager validSlashingRecord(slashingId) {
+        SlashingRecord storage record = _slashingRecords[slashingId];
+        require(record.isActive, "KarmaStaking: slashing already resolved");
+        
+        if (approved) {
+            // Restore slashed amount
+            address user = record.slashedUser;
+            UserStakeData storage userData = _userStakes[user];
+            
+            userData.totalStaked += record.amount;
+            userData.totalVotingPower = _calculateUserTotalVotingPower(user);
+            
+            // Remove slashing penalties
+            totalSlashedAmount[user] -= record.amount;
+            slashingRecoveryTime[user] = block.timestamp;
+            
+            // Update metrics
+            stakingMetrics.totalStaked += record.amount;
+            stakingMetrics.totalVotingPower += userData.totalVotingPower;
+        }
+        
+        record.isActive = false;
+    }
+    
+    // ============ ENHANCED VIEW FUNCTIONS ============
+    
+    /**
+     * @dev Get user's governance participation data
+     */
+    function getGovernanceParticipation(address user) 
+        external 
+        view 
+        returns (GovernanceParticipation memory) 
+    {
+        return _governanceParticipation[user];
+    }
+    
+    /**
+     * @dev Get user's staking tier
+     */
+    function getUserTier(address user) external view returns (StakingTier) {
+        return userTiers[user];
+    }
+    
+    /**
+     * @dev Get tier benefits
+     */
+    function getTierBenefits(StakingTier tier) external view returns (TierBenefits memory) {
+        return tierBenefits[tier];
+    }
+    
+    /**
+     * @dev Get slashing record
+     */
+    function getSlashingRecord(uint256 slashingId) 
+        external 
+        view 
+        validSlashingRecord(slashingId) 
+        returns (SlashingRecord memory) 
+    {
+        return _slashingRecords[slashingId];
+    }
+    
+    /**
+     * @dev Get user's unclaimed governance rewards
+     */
+    function getUnclaimedGovernanceRewards(address user) external view returns (uint256) {
+        return unclaimedGovernanceRewards[user];
+    }
+    
+    /**
+     * @dev Check if user is currently slashed
+     */
+    function isUserSlashed(address user) external view returns (bool) {
+        return slashingRecoveryTime[user] > block.timestamp;
+    }
+    
+    // ============ ENHANCED INTERNAL FUNCTIONS ============
+    
+    function _initializeTierBenefits() internal {
+        // Bronze tier benefits
+        tierBenefits[StakingTier.BRONZE] = TierBenefits({
+            votingPowerMultiplier: 11000,  // 1.1x voting power
+            proposalThresholdReduction: 500, // 5% reduction
+            rewardMultiplier: 11000,       // 1.1x rewards
+            slashingProtection: 500,       // 5% protection
+            canCreateEmergencyProposals: false,
+            canParticipateInOversight: false
+        });
+        
+        // Silver tier benefits
+        tierBenefits[StakingTier.SILVER] = TierBenefits({
+            votingPowerMultiplier: 12500,  // 1.25x voting power
+            proposalThresholdReduction: 1000, // 10% reduction
+            rewardMultiplier: 12500,       // 1.25x rewards
+            slashingProtection: 1000,      // 10% protection
+            canCreateEmergencyProposals: false,
+            canParticipateInOversight: true
+        });
+        
+        // Gold tier benefits
+        tierBenefits[StakingTier.GOLD] = TierBenefits({
+            votingPowerMultiplier: 15000,  // 1.5x voting power
+            proposalThresholdReduction: 2000, // 20% reduction
+            rewardMultiplier: 15000,       // 1.5x rewards
+            slashingProtection: 1500,      // 15% protection
+            canCreateEmergencyProposals: true,
+            canParticipateInOversight: true
+        });
+        
+        // Diamond tier benefits
+        tierBenefits[StakingTier.DIAMOND] = TierBenefits({
+            votingPowerMultiplier: 20000,  // 2x voting power
+            proposalThresholdReduction: 3000, // 30% reduction
+            rewardMultiplier: 20000,       // 2x rewards
+            slashingProtection: 2500,      // 25% protection
+            canCreateEmergencyProposals: true,
+            canParticipateInOversight: true
+        });
+    }
+    
+    function _checkTierUpgrade(address user) internal {
+        uint256 totalStaked = _userStakes[user].totalStaked;
+        StakingTier currentTier = userTiers[user];
+        StakingTier newTier = _calculateTier(totalStaked);
+        
+        if (newTier != currentTier) {
+            userTiers[user] = newTier;
+            _governanceParticipation[user].currentTier = newTier;
+            
+            // Recalculate voting power with new tier
+            _userStakes[user].totalVotingPower = _calculateUserTotalVotingPower(user);
+            
+            emit TierUpgraded(user, currentTier, newTier, block.timestamp);
+        }
+    }
+    
+    function _calculateTier(uint256 totalStaked) internal pure returns (StakingTier) {
+        if (totalStaked >= DIAMOND_TIER_THRESHOLD) return StakingTier.DIAMOND;
+        if (totalStaked >= GOLD_TIER_THRESHOLD) return StakingTier.GOLD;
+        if (totalStaked >= SILVER_TIER_THRESHOLD) return StakingTier.SILVER;
+        if (totalStaked >= BRONZE_TIER_THRESHOLD) return StakingTier.BRONZE;
+        return StakingTier.NONE;
+    }
+    
+    function _getSlashingRecoveryTime(SlashingReason reason) internal pure returns (uint256) {
+        if (reason == SlashingReason.MALICIOUS_PROPOSAL) return 30 days;
+        if (reason == SlashingReason.VOTING_MANIPULATION) return 60 days;
+        if (reason == SlashingReason.GOVERNANCE_SPAM) return 7 days;
+        if (reason == SlashingReason.COORDINATED_ATTACK) return 90 days;
+        if (reason == SlashingReason.VIOLATION_OF_RULES) return 14 days;
+        return 7 days; // Default
+    }
+    
+    /**
+     * @dev Calculate total voting power for a user based on all their stakes
+     */
+    function _calculateUserTotalVotingPower(address user) internal view returns (uint256 totalVotingPower) {
+        if (!isStaker[user]) return 0;
+        
+        UserStakeData storage userData = _userStakes[user];
+        uint256 totalPower = 0;
+        
+        // Calculate voting power for each active stake
+        for (uint256 i = 0; i < userData.stakeIds.length; i++) {
+            uint256 stakeId = userData.stakeIds[i];
+            StakeInfo storage stakeInfo = _stakes[stakeId];
+            
+            if (!stakeInfo.isActive) continue;
+            
+            // Calculate voting power for this stake
+            uint256 stakePower = calculateVotingPower(
+                stakeInfo.amount,
+                stakeInfo.stakeType,
+                stakeInfo.lockPeriod
+            );
+            
+            totalPower += stakePower;
+        }
+        
+        // Apply tier multiplier
+        StakingTier tier = userTiers[user];
+        if (tier != StakingTier.NONE) {
+            uint256 tierMultiplier = tierBenefits[tier].votingPowerMultiplier;
+            totalPower = (totalPower * tierMultiplier) / BASIS_POINTS;
+        }
+        
+        return totalPower;
     }
 } 
