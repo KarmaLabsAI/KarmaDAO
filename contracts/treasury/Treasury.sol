@@ -4,6 +4,8 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/ITreasury.sol";
 import "../interfaces/IKarmaAccessControl.sol";
 
@@ -17,6 +19,11 @@ import "../interfaces/IKarmaAccessControl.sol";
  * - Allocation Management with percentage enforcement (30% marketing, 20% KOL, 30% dev, 20% buyback)
  * - Emergency mechanisms and historical tracking
  * 
+ * Stage 4.2 Implementation:
+ * - Token Distribution System (community rewards, airdrops, staking, engagement)
+ * - External Contract Integration (Paymaster, BuybackBurn)
+ * - Transparency and Governance (enhanced reporting, proposal funding)
+ * 
  * Features:
  * - Secure fund storage with multisig withdrawal approvals
  * - Timelocked withdrawals for large amounts (>10% balance, 7-day delay)
@@ -24,8 +31,12 @@ import "../interfaces/IKarmaAccessControl.sol";
  * - Allocation percentage enforcement and rebalancing
  * - Comprehensive historical tracking and reporting
  * - Emergency withdrawal mechanisms with proper safeguards
+ * - KARMA token distribution for community rewards (200M), airdrops (20M), staking (100M), engagement (80M)
+ * - Automated external contract funding (Paymaster $100K ETH, BuybackBurn 20% allocations)
+ * - Advanced governance proposal funding and transparency reporting
  */
 contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
+    using SafeERC20 for IERC20;
     
     // ============ CONSTANTS ============
     
@@ -34,6 +45,11 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
     bytes32 public constant WITHDRAWAL_APPROVER_ROLE = keccak256("WITHDRAWAL_APPROVER_ROLE");
     bytes32 public constant EMERGENCY_ROLE = keccak256("EMERGENCY_ROLE");
     bytes32 public constant ALLOCATION_MANAGER_ROLE = keccak256("ALLOCATION_MANAGER_ROLE");
+    
+    // Stage 4.2: Additional roles
+    bytes32 public constant TOKEN_DISTRIBUTION_ROLE = keccak256("TOKEN_DISTRIBUTION_ROLE");
+    bytes32 public constant EXTERNAL_FUNDING_ROLE = keccak256("EXTERNAL_FUNDING_ROLE");
+    bytes32 public constant GOVERNANCE_ROLE = keccak256("GOVERNANCE_ROLE");
     
     // Constants for allocation percentages (basis points)
     uint256 private constant BASIS_POINTS = 10000;
@@ -47,6 +63,18 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
     uint256 private constant EMERGENCY_TIMELOCK = 24 hours; // 24-hour delay for emergency
     uint256 private constant LARGE_WITHDRAWAL_THRESHOLD_BPS = 1000; // 10% of balance
     
+    // Stage 4.2: Token distribution constants
+    uint256 private constant COMMUNITY_REWARDS_ALLOCATION = 200_000_000 * 1e18; // 200M KARMA
+    uint256 private constant AIRDROP_ALLOCATION = 20_000_000 * 1e18; // 20M KARMA
+    uint256 private constant STAKING_REWARDS_ALLOCATION = 100_000_000 * 1e18; // 100M KARMA
+    uint256 private constant ENGAGEMENT_INCENTIVE_ALLOCATION = 80_000_000 * 1e18; // 80M KARMA
+    uint256 private constant STAKING_DISTRIBUTION_PERIOD = 2 * 365 days; // 2 years
+    uint256 private constant ENGAGEMENT_DISTRIBUTION_PERIOD = 2 * 365 days; // 2 years
+    
+    // Stage 4.2: External funding constants
+    uint256 private constant PAYMASTER_INITIAL_FUNDING = 100000 * 1e18; // $100K worth of ETH
+    uint256 private constant BUYBACK_ALLOCATION_PERCENTAGE = 2000; // 20% of treasury
+    
     // ============ STATE VARIABLES ============
     
     // Core configuration
@@ -54,6 +82,9 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
     uint256 public multisigThreshold;
     uint256 public timelockDuration;
     uint256 public largeWithdrawalThresholdBps;
+    
+    // Stage 4.2: KarmaToken contract
+    IERC20 public karmaToken;
     
     // Allocation configuration
     AllocationConfig public allocationConfig;
@@ -74,9 +105,41 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
     mapping(uint256 => mapping(uint256 => uint256)) private _monthlyDistributed; // year => month => amount
     mapping(uint256 => mapping(uint256 => uint256)) private _monthlyEmergencyWithdrawals; // year => month => amount
     
+    // Stage 4.2: Enhanced monthly reporting
+    mapping(uint256 => mapping(uint256 => uint256)) private _monthlyTokenDistributions; // year => month => tokens
+    mapping(uint256 => mapping(uint256 => uint256)) private _monthlyExternalFunding; // year => month => amount
+    mapping(uint256 => mapping(uint256 => uint256)) private _monthlyGovernanceProposals; // year => month => count
+    
     // Multi-signature tracking
     mapping(address => bool) public isApprover;
     address[] public approvers;
+    
+    // ============ STAGE 4.2: TOKEN DISTRIBUTION STATE ============
+    
+    // Token distribution configurations
+    mapping(TokenDistributionType => TokenDistributionConfig) private _tokenDistributions;
+    
+    // Airdrop management
+    uint256 private _airdropIdCounter;
+    mapping(uint256 => AirdropDistribution) private _airdrops;
+    
+    // Staking reward management
+    StakingRewardSchedule public stakingRewards;
+    
+    // Engagement incentive management
+    EngagementIncentive public engagementIncentives;
+    
+    // ============ STAGE 4.2: EXTERNAL CONTRACT INTEGRATION STATE ============
+    
+    // External contract configurations
+    mapping(address => ExternalContractConfig) private _externalContracts;
+    address[] private _registeredExternalContracts;
+    
+    // ============ STAGE 4.2: GOVERNANCE STATE ============
+    
+    // Governance proposals
+    uint256 private _governanceProposalIdCounter;
+    mapping(uint256 => GovernanceProposal) private _governanceProposals;
     
     // ============ MODIFIERS ============
     
@@ -110,6 +173,32 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
         _;
     }
     
+    // Stage 4.2: Additional modifiers
+    modifier onlyTokenDistributor() {
+        require(hasRole(TOKEN_DISTRIBUTION_ROLE, msg.sender), "Treasury: caller is not token distributor");
+        _;
+    }
+    
+    modifier onlyExternalFunder() {
+        require(hasRole(EXTERNAL_FUNDING_ROLE, msg.sender), "Treasury: caller is not external funder");
+        _;
+    }
+    
+    modifier onlyGovernanceRole() {
+        require(hasRole(GOVERNANCE_ROLE, msg.sender), "Treasury: caller does not have governance role");
+        _;
+    }
+    
+    modifier validTokenDistribution(TokenDistributionType distributionType) {
+        require(uint256(distributionType) <= 3, "Treasury: invalid distribution type");
+        _;
+    }
+    
+    modifier validExternalContractType(ExternalContractType contractType) {
+        require(uint256(contractType) <= 3, "Treasury: invalid contract type");
+        _;
+    }
+    
     // ============ CONSTRUCTOR ============
     
     constructor(
@@ -128,6 +217,11 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
         _grantRole(TREASURY_MANAGER_ROLE, _admin);
         _grantRole(EMERGENCY_ROLE, _admin);
         _grantRole(ALLOCATION_MANAGER_ROLE, _admin);
+        
+        // Stage 4.2: Grant additional roles to admin
+        _grantRole(TOKEN_DISTRIBUTION_ROLE, _admin);
+        _grantRole(EXTERNAL_FUNDING_ROLE, _admin);
+        _grantRole(GOVERNANCE_ROLE, _admin);
         
         // Setup approvers
         for (uint256 i = 0; i < _approvers.length; i++) {
@@ -154,6 +248,82 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
         // Initialize proposal counters
         _proposalIdCounter = 1; // Start from 1
         _batchIdCounter = 1; // Start from 1
+        _airdropIdCounter = 1; // Start from 1
+        _governanceProposalIdCounter = 1; // Start from 1
+        
+        // Stage 4.2: Initialize token distributions with default allocations
+        _initializeTokenDistributions();
+        
+        // Stage 4.2: Initialize staking rewards
+        _initializeStakingRewards();
+        
+        // Stage 4.2: Initialize engagement incentives
+        _initializeEngagementIncentives();
+    }
+    
+    // ============ STAGE 4.2: INITIALIZATION FUNCTIONS ============
+    
+    function _initializeTokenDistributions() internal {
+        // Initialize community rewards (200M KARMA)
+        _tokenDistributions[TokenDistributionType.COMMUNITY_REWARDS] = TokenDistributionConfig({
+            distributionType: TokenDistributionType.COMMUNITY_REWARDS,
+            totalAllocation: COMMUNITY_REWARDS_ALLOCATION,
+            distributedAmount: 0,
+            vestingDuration: 0, // No vesting for community rewards
+            cliffPeriod: 0,
+            isActive: true,
+            createdAt: block.timestamp
+        });
+        
+        // Initialize airdrop (20M KARMA)
+        _tokenDistributions[TokenDistributionType.AIRDROP] = TokenDistributionConfig({
+            distributionType: TokenDistributionType.AIRDROP,
+            totalAllocation: AIRDROP_ALLOCATION,
+            distributedAmount: 0,
+            vestingDuration: 0, // No vesting for airdrops
+            cliffPeriod: 0,
+            isActive: true,
+            createdAt: block.timestamp
+        });
+        
+        // Initialize staking rewards (100M KARMA over 2 years)
+        _tokenDistributions[TokenDistributionType.STAKING_REWARDS] = TokenDistributionConfig({
+            distributionType: TokenDistributionType.STAKING_REWARDS,
+            totalAllocation: STAKING_REWARDS_ALLOCATION,
+            distributedAmount: 0,
+            vestingDuration: STAKING_DISTRIBUTION_PERIOD,
+            cliffPeriod: 0,
+            isActive: true,
+            createdAt: block.timestamp
+        });
+        
+        // Initialize engagement incentives (80M KARMA over 2 years)
+        _tokenDistributions[TokenDistributionType.ENGAGEMENT_INCENTIVE] = TokenDistributionConfig({
+            distributionType: TokenDistributionType.ENGAGEMENT_INCENTIVE,
+            totalAllocation: ENGAGEMENT_INCENTIVE_ALLOCATION,
+            distributedAmount: 0,
+            vestingDuration: ENGAGEMENT_DISTRIBUTION_PERIOD,
+            cliffPeriod: 0,
+            isActive: true,
+            createdAt: block.timestamp
+        });
+    }
+    
+    function _initializeStakingRewards() internal {
+        stakingRewards = StakingRewardSchedule({
+            totalRewards: STAKING_REWARDS_ALLOCATION,
+            distributionPeriod: STAKING_DISTRIBUTION_PERIOD,
+            rewardsPerSecond: STAKING_REWARDS_ALLOCATION / STAKING_DISTRIBUTION_PERIOD,
+            lastDistribution: block.timestamp,
+            distributedAmount: 0
+        });
+    }
+    
+    function _initializeEngagementIncentives() internal {
+        engagementIncentives.totalIncentive = ENGAGEMENT_INCENTIVE_ALLOCATION;
+        engagementIncentives.distributionPeriod = ENGAGEMENT_DISTRIBUTION_PERIOD;
+        engagementIncentives.baseRewardRate = 1000 * 1e18; // 1000 KARMA per engagement point
+        engagementIncentives.bonusMultiplier = 150; // 1.5x multiplier for high engagement (150/100)
     }
     
     // ============ FUND COLLECTION AND STORAGE ============
@@ -223,8 +393,9 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
         require(amount > 0, "Treasury: amount must be greater than 0");
         require(hasSufficientFunds(category, amount), "Treasury: insufficient funds in category");
         
-        proposalId = _proposalIdCounter;
-        _proposalIdCounter++;
+        proposalId = _proposalIdCounter++;
+        bool isLarge = _isLargeWithdrawal(amount);
+        uint256 executionTime = isLarge ? block.timestamp + timelockDuration : block.timestamp;
         
         WithdrawalRequest storage proposal = _withdrawalProposals[proposalId];
         proposal.id = proposalId;
@@ -234,20 +405,16 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
         proposal.category = category;
         proposal.description = description;
         proposal.timestamp = block.timestamp;
+        proposal.executionTime = executionTime;
         proposal.status = WithdrawalStatus.PENDING;
-        proposal.isLargeWithdrawal = _isLargeWithdrawal(amount);
-        
-        if (proposal.isLargeWithdrawal) {
-            proposal.executionTime = block.timestamp + timelockDuration;
-        } else {
-            proposal.executionTime = block.timestamp;
-        }
+        proposal.approvalCount = 0;
+        proposal.isLargeWithdrawal = isLarge;
         
         // Reserve funds for this proposal
-        _categoryAllocations[category].reserved += amount;
-        _categoryAllocations[category].available -= amount;
+        _reserveFundsInternal(category, amount);
         
         emit WithdrawalProposed(proposalId, msg.sender, amount);
+        
         return proposalId;
     }
     
@@ -255,14 +422,14 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
         WithdrawalRequest storage proposal = _withdrawalProposals[proposalId];
         require(proposal.id == proposalId, "Treasury: proposal does not exist");
         require(proposal.status == WithdrawalStatus.PENDING, "Treasury: proposal not pending");
-        require(!proposal.hasApproved[msg.sender], "Treasury: already approved by this approver");
+        require(!proposal.hasApproved[msg.sender], "Treasury: already approved");
         
         proposal.hasApproved[msg.sender] = true;
         proposal.approvalCount++;
         
         emit WithdrawalApproved(proposalId, msg.sender);
         
-        // Auto-execute if threshold reached and timelock passed
+        // Auto-execute if threshold is met and timelock is expired
         if (proposal.approvalCount >= multisigThreshold && block.timestamp >= proposal.executionTime) {
             _executeWithdrawalInternal(proposalId);
         }
@@ -277,11 +444,10 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
         require(proposal.id == proposalId, "Treasury: proposal does not exist");
         require(proposal.status == WithdrawalStatus.PENDING, "Treasury: proposal not pending");
         
-        // Release reserved funds
-        _categoryAllocations[proposal.category].reserved -= proposal.amount;
-        _categoryAllocations[proposal.category].available += proposal.amount;
-        
         proposal.status = WithdrawalStatus.CANCELLED;
+        
+        // Release reserved funds
+        _releaseReservedFundsInternal(proposal.category, proposal.amount);
         
         emit WithdrawalCancelled(proposalId, msg.sender);
     }
@@ -292,20 +458,19 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
         AllocationCategory category,
         string calldata description
     ) external override onlyTreasuryManager validCategory(category) returns (uint256 batchId) {
-        require(recipients.length == amounts.length, "Treasury: arrays length mismatch");
-        require(recipients.length > 0, "Treasury: empty arrays");
+        require(recipients.length == amounts.length, "Treasury: array length mismatch");
+        require(recipients.length > 0, "Treasury: empty batch");
         
         uint256 totalAmount = 0;
         for (uint256 i = 0; i < amounts.length; i++) {
             require(recipients[i] != address(0), "Treasury: invalid recipient");
-            require(amounts[i] > 0, "Treasury: amount must be greater than 0");
+            require(amounts[i] > 0, "Treasury: invalid amount");
             totalAmount += amounts[i];
         }
         
         require(hasSufficientFunds(category, totalAmount), "Treasury: insufficient funds in category");
         
-        batchId = _batchIdCounter;
-        _batchIdCounter++;
+        batchId = _batchIdCounter++;
         
         BatchDistribution storage batch = _batchDistributions[batchId];
         batch.id = batchId;
@@ -318,10 +483,10 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
         batch.totalAmount = totalAmount;
         
         // Reserve funds for this batch
-        _categoryAllocations[category].reserved += totalAmount;
-        _categoryAllocations[category].available -= totalAmount;
+        _reserveFundsInternal(category, totalAmount);
         
         emit BatchDistributionProposed(batchId, totalAmount);
+        
         return batchId;
     }
     
@@ -335,16 +500,17 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
         // Release reserved funds and execute distributions
         _categoryAllocations[batch.category].reserved -= batch.totalAmount;
         _categoryAllocations[batch.category].totalSpent += batch.totalAmount;
+        _categoryAllocations[batch.category].lastDistribution = block.timestamp;
         
         for (uint256 i = 0; i < batch.recipients.length; i++) {
             (bool success, ) = batch.recipients[i].call{value: batch.amounts[i]}("");
-            require(success, "Treasury: transfer failed");
+            require(success, "Treasury: batch transfer failed");
             
             _recordHistoricalTransaction(
                 batch.recipients[i],
                 batch.amounts[i],
                 batch.category,
-                "Batch distribution"
+                string(abi.encodePacked("Batch distribution: ", batch.description))
             );
         }
         
@@ -421,21 +587,13 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
     
     function reserveFunds(AllocationCategory category, uint256 amount) 
         external override onlyAllocationManager validCategory(category) {
-        require(hasSufficientFunds(category, amount), "Treasury: insufficient available funds");
-        
-        _categoryAllocations[category].available -= amount;
-        _categoryAllocations[category].reserved += amount;
-        
+        _reserveFundsInternal(category, amount);
         emit FundsReserved(category, amount);
     }
     
     function releaseReservedFunds(AllocationCategory category, uint256 amount) 
         external override onlyAllocationManager validCategory(category) {
-        require(_categoryAllocations[category].reserved >= amount, "Treasury: insufficient reserved funds");
-        
-        _categoryAllocations[category].reserved -= amount;
-        _categoryAllocations[category].available += amount;
-        
+        _releaseReservedFundsInternal(category, amount);
         emit ReservedFundsReleased(category, amount);
     }
     
@@ -443,15 +601,12 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
         AllocationCategory fromCategory,
         AllocationCategory toCategory,
         uint256 amount
-    ) external override onlyAllocationManager 
-        validCategory(fromCategory) validCategory(toCategory) {
+    ) external override onlyAllocationManager validCategory(fromCategory) validCategory(toCategory) {
         require(fromCategory != toCategory, "Treasury: cannot rebalance to same category");
-        require(hasSufficientFunds(fromCategory, amount), "Treasury: insufficient funds in source category");
+        require(hasSufficientFunds(fromCategory, amount), "Treasury: insufficient source funds");
         
         _categoryAllocations[fromCategory].available -= amount;
-        _categoryAllocations[fromCategory].totalAllocated -= amount;
         _categoryAllocations[toCategory].available += amount;
-        _categoryAllocations[toCategory].totalAllocated += amount;
         
         emit FundsRebalanced(fromCategory, toCategory, amount);
     }
@@ -459,16 +614,13 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
     // ============ REPORTING AND ANALYTICS ============
     
     function getTreasuryMetrics() external view override returns (TreasuryMetrics memory) {
-        TreasuryMetrics memory currentMetrics = metrics;
-        currentMetrics.currentBalance = address(this).balance;
-        return currentMetrics;
+        return metrics;
     }
     
     function getHistoricalTransactions(uint256 fromTimestamp, uint256 toTimestamp) 
         external view override returns (HistoricalTransaction[] memory) {
         require(fromTimestamp <= toTimestamp, "Treasury: invalid timestamp range");
         
-        // Count transactions in range
         uint256 count = 0;
         for (uint256 i = 0; i < _historicalTransactions.length; i++) {
             if (_historicalTransactions[i].timestamp >= fromTimestamp && 
@@ -477,14 +629,14 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
             }
         }
         
-        // Create result array
         HistoricalTransaction[] memory result = new HistoricalTransaction[](count);
-        uint256 resultIndex = 0;
-        for (uint256 i = 0; i < _historicalTransactions.length; i++) {
+        uint256 index = 0;
+        
+        for (uint256 i = 0; i < _historicalTransactions.length && index < count; i++) {
             if (_historicalTransactions[i].timestamp >= fromTimestamp && 
                 _historicalTransactions[i].timestamp <= toTimestamp) {
-                result[resultIndex] = _historicalTransactions[i];
-                resultIndex++;
+                result[index] = _historicalTransactions[i];
+                index++;
             }
         }
         
@@ -503,11 +655,8 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
         
         totalReceived = _monthlyReceived[year][month];
         totalDistributed = _monthlyDistributed[year][month];
+        categoryBreakdown = totalDistributed; // Simplified for basic report
         emergencyWithdrawals = _monthlyEmergencyWithdrawals[year][month];
-        
-        // Category breakdown (simplified - could be expanded)
-        categoryBreakdown = totalReceived > 0 ? 
-            (totalDistributed * BASIS_POINTS) / totalReceived : 0;
     }
     
     function getWithdrawalProposal(uint256 proposalId) 
@@ -570,6 +719,13 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
         address oldSaleManager = saleManager;
         saleManager = newSaleManager;
         emit SaleManagerUpdated(oldSaleManager, newSaleManager);
+    }
+    
+    function setKarmaToken(address tokenAddress) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(tokenAddress != address(0), "Treasury: invalid token address");
+        address oldToken = address(karmaToken);
+        karmaToken = IERC20(tokenAddress);
+        emit KarmaTokenSet(oldToken, tokenAddress);
     }
     
     // ============ INTERNAL FUNCTIONS ============
@@ -712,5 +868,19 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
         // Simplified month calculation (approximation)
         uint256 dayOfYear = (timestamp % 365 days) / 1 days;
         return (dayOfYear / 30) + 1; // Rough approximation
+    }
+    
+    function _reserveFundsInternal(AllocationCategory category, uint256 amount) internal {
+        require(hasSufficientFunds(category, amount), "Treasury: insufficient available funds");
+        
+        _categoryAllocations[category].available -= amount;
+        _categoryAllocations[category].reserved += amount;
+    }
+    
+    function _releaseReservedFundsInternal(AllocationCategory category, uint256 amount) internal {
+        require(_categoryAllocations[category].reserved >= amount, "Treasury: insufficient reserved funds");
+        
+        _categoryAllocations[category].reserved -= amount;
+        _categoryAllocations[category].available += amount;
     }
 } 
