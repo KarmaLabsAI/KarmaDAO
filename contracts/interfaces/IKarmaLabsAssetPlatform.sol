@@ -142,7 +142,7 @@ interface IKarmaLabsAssetPlatform {
     
     event AssetCreated(uint256 indexed assetId, address indexed creator, AssetType assetType, string title);
     event AssetListed(uint256 indexed listingId, uint256 indexed assetId, address indexed seller, uint256 price);
-    event AssetSold(uint256 indexed saleId, uint256 indexed assetId, address indexed seller, address indexed buyer, uint256 price);
+    event AssetSold(uint256 saleId, uint256 indexed assetId, address indexed seller, address indexed buyer, uint256 price);
     event AssetVerified(uint256 indexed assetId, address indexed verifier, VerificationStatus status);
     event RoyaltyPaid(uint256 indexed assetId, address indexed creator, uint256 amount);
     

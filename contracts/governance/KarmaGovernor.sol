@@ -182,7 +182,7 @@ contract KarmaGovernor is
     function votingDelay()
         public
         view
-        override(IGovernor, GovernorSettings)
+        override(Governor, GovernorSettings)
         returns (uint256)
     {
         return super.votingDelay();
@@ -191,7 +191,7 @@ contract KarmaGovernor is
     function votingPeriod()
         public
         view
-        override(IGovernor, GovernorSettings)
+        override(Governor, GovernorSettings)
         returns (uint256)
     {
         return super.votingPeriod();
@@ -200,7 +200,7 @@ contract KarmaGovernor is
     function quorum(uint256 blockNumber)
         public
         view
-        override(IGovernor, GovernorVotesQuorumFraction)
+        override(Governor, GovernorVotesQuorumFraction)
         returns (uint256)
     {
         return super.quorum(blockNumber);
@@ -274,7 +274,7 @@ contract KarmaGovernor is
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(Governor, GovernorTimelockControl, AccessControl)
+        override(Governor, AccessControl)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
@@ -361,7 +361,7 @@ contract KarmaGovernor is
         returns (uint256 balance) 
     {
         // Get base voting power
-        balance = castVote(proposalId, support, reason);
+        balance = castVote(proposalId, support);
         
         // Calculate quadratic voting power if enabled
         if (_governanceConfig.quadraticVotingEnabled && stakingContract != address(0)) {

@@ -67,21 +67,13 @@ contract KarmaAIInferencePayment is IAIInferencePayment, AccessControl, Pausable
     
     QueueConfig private _queueConfig;
     
-    // Inference metrics
-    struct InferenceMetrics {
-        uint256 totalRequests;
-        uint256 completedRequests;
-        uint256 failedRequests;
-        uint256 totalCost;
-        uint256 averageProcessingTime;
-        uint256 averageCost;
-        mapping(InferenceType => uint256) requestsByType;
-        mapping(ModelComplexity => uint256) requestsByComplexity;
-        mapping(address => uint256) userRequests;
-        mapping(address => uint256) userSpending;
-    }
+    // Inference metrics (struct defined in IAIInferencePayment interface)
     
     InferenceMetrics private _inferenceMetrics;
+    
+    // Additional user metrics tracking (not in interface struct)
+    mapping(address => uint256) private _userRequests;
+    mapping(address => uint256) private _userSpending;
     
     // User management
     mapping(address => uint256) public userTotalSpent;
@@ -235,7 +227,7 @@ contract KarmaAIInferencePayment is IAIInferencePayment, AccessControl, Pausable
         _inferenceMetrics.totalRequests++;
         _inferenceMetrics.requestsByType[inferenceType]++;
         _inferenceMetrics.requestsByComplexity[complexity]++;
-        _inferenceMetrics.userRequests[msg.sender]++;
+        _userRequests[msg.sender]++;
         
         // Update user data
         userRequestCount[msg.sender]++;
@@ -290,7 +282,7 @@ contract KarmaAIInferencePayment is IAIInferencePayment, AccessControl, Pausable
         // Update metrics
         _inferenceMetrics.completedRequests++;
         _inferenceMetrics.totalCost += actualCost;
-        _inferenceMetrics.userSpending[request.requester] += actualCost;
+        _userSpending[request.requester] += actualCost;
         
         uint256 processingTime = block.timestamp - request.timestamp;
         _inferenceMetrics.averageProcessingTime = 
@@ -414,11 +406,11 @@ contract KarmaAIInferencePayment is IAIInferencePayment, AccessControl, Pausable
     ) {
         if (user != address(0)) {
             return (
-                _inferenceMetrics.userRequests[user],
-                _inferenceMetrics.userRequests[user], // Simplified - would track per user
-                _inferenceMetrics.userSpending[user],
-                _inferenceMetrics.userRequests[user] > 0 ? 
-                    _inferenceMetrics.userSpending[user] / _inferenceMetrics.userRequests[user] : 0
+                _userRequests[user],
+                _userRequests[user], // Simplified - would track per user
+                _userSpending[user],
+                _userRequests[user] > 0 ? 
+                    _userSpending[user] / _userRequests[user] : 0
             );
         } else {
             return (

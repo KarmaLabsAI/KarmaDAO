@@ -58,19 +58,12 @@ contract KarmaMetadataStorage is IMetadataStorage, AccessControl, Pausable, Reen
     mapping(bytes32 => uint256) public verificationCount;
     mapping(bytes32 => mapping(address => bool)) public hasVerified;
     
-    // Storage metrics
-    struct StorageMetrics {
-        uint256 totalStorageRequests;
-        uint256 totalDataStored;        // In bytes
-        uint256 totalStorageCost;
-        uint256 averageStorageDuration;
-        uint256 totalAccessCount;
-        mapping(StorageType => uint256) storageByType;
-        mapping(address => uint256) userStorageUsage;
-        mapping(address => uint256) userStorageCost;
-    }
+    // Storage metrics (struct defined in IMetadataStorage interface)
     
     StorageMetrics private _storageMetrics;
+    
+    // Additional user cost tracking (not in interface struct)
+    mapping(address => uint256) private _userStorageCosts;
     
     // IPFS integration
     mapping(bytes32 => string) public ipfsHashes;
@@ -242,7 +235,7 @@ contract KarmaMetadataStorage is IMetadataStorage, AccessControl, Pausable, Reen
         _storageMetrics.totalStorageCost += storageCost;
         _storageMetrics.storageByType[storageType] += data.length;
         _storageMetrics.userStorageUsage[msg.sender] += data.length;
-        _storageMetrics.userStorageCost[msg.sender] += storageCost;
+        _userStorageCosts[msg.sender] += storageCost;
         
         if (_storageMetrics.totalStorageRequests > 0) {
             _storageMetrics.averageStorageDuration = 
@@ -410,7 +403,7 @@ contract KarmaMetadataStorage is IMetadataStorage, AccessControl, Pausable, Reen
         
         // Update metrics
         _storageMetrics.totalStorageCost += additionalCost;
-        _storageMetrics.userStorageCost[msg.sender] += additionalCost;
+        _userStorageCosts[msg.sender] += additionalCost;
         
         // Transfer payment to treasury
         (bool success, ) = treasury.call{value: additionalCost}("");
@@ -498,7 +491,7 @@ contract KarmaMetadataStorage is IMetadataStorage, AccessControl, Pausable, Reen
         bytes32[] memory userRequests = requestsByUser[user];
         totalRequests = userRequests.length;
         totalDataStored = _storageMetrics.userStorageUsage[user];
-        totalCost = _storageMetrics.userStorageCost[user];
+        totalCost = _userStorageCosts[user];
         
         // Calculate total accesses
         for (uint256 i = 0; i < userRequests.length; i++) {
