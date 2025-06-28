@@ -883,4 +883,416 @@ contract Treasury is ITreasury, AccessControl, Pausable, ReentrancyGuard {
         _categoryAllocations[category].reserved -= amount;
         _categoryAllocations[category].available += amount;
     }
+    
+    // ============ STAGE 4.2: TOKEN DISTRIBUTION SYSTEM ============
+    
+    function configureTokenDistribution(
+        TokenDistributionType distributionType,
+        uint256 totalAllocation,
+        uint256 vestingDuration,
+        uint256 cliffPeriod
+    ) external override onlyTokenDistributor validTokenDistribution(distributionType) {
+        require(totalAllocation > 0, "Treasury: invalid allocation amount");
+        
+        _tokenDistributions[distributionType] = TokenDistributionConfig({
+            distributionType: distributionType,
+            totalAllocation: totalAllocation,
+            distributedAmount: 0,
+            vestingDuration: vestingDuration,
+            cliffPeriod: cliffPeriod,
+            isActive: true,
+            createdAt: block.timestamp
+        });
+        
+        emit TokenDistributionConfigured(distributionType, totalAllocation);
+    }
+    
+    function distributeCommunityRewards(
+        address[] calldata recipients,
+        uint256[] calldata amounts,
+        string calldata description
+    ) external override onlyTokenDistributor nonReentrant {
+        require(recipients.length == amounts.length, "Treasury: array length mismatch");
+        require(address(karmaToken) != address(0), "Treasury: KARMA token not set");
+        
+        uint256 totalAmount = 0;
+        for (uint256 i = 0; i < amounts.length; i++) {
+            totalAmount += amounts[i];
+            karmaToken.safeTransfer(recipients[i], amounts[i]);
+        }
+        
+        _tokenDistributions[TokenDistributionType.COMMUNITY_REWARDS].distributedAmount += totalAmount;
+        _updateMonthlyTokenDistributions(totalAmount);
+        
+        emit CommunityRewardsDistributed(recipients, amounts, totalAmount);
+    }
+    
+    function executeAirdrop(
+        address[] calldata recipients,
+        uint256[] calldata amounts,
+        bytes32 merkleRoot
+    ) external override onlyTokenDistributor nonReentrant returns (uint256 airdropId) {
+        require(address(karmaToken) != address(0), "Treasury: KARMA token not set");
+        
+        uint256 totalTokens = 0;
+        for (uint256 i = 0; i < amounts.length; i++) {
+            totalTokens += amounts[i];
+            karmaToken.safeTransfer(recipients[i], amounts[i]);
+        }
+        
+        airdropId = _airdropIdCounter++;
+        _tokenDistributions[TokenDistributionType.AIRDROP].distributedAmount += totalTokens;
+        _updateMonthlyTokenDistributions(totalTokens);
+        
+        emit AirdropExecuted(airdropId, recipients, totalTokens);
+    }
+    
+    function configureStakingRewards(
+        uint256 totalRewards,
+        uint256 distributionPeriod
+    ) external override onlyTokenDistributor {
+        stakingRewards.totalRewards = totalRewards;
+        stakingRewards.distributionPeriod = distributionPeriod;
+        stakingRewards.rewardsPerSecond = totalRewards / distributionPeriod;
+        
+        emit StakingRewardsConfigured(totalRewards, distributionPeriod);
+    }
+    
+    function distributeStakingRewards(
+        address stakingContract,
+        uint256 amount
+    ) external override onlyTokenDistributor nonReentrant {
+        require(address(karmaToken) != address(0), "Treasury: KARMA token not set");
+        
+        karmaToken.safeTransfer(stakingContract, amount);
+        stakingRewards.distributedAmount += amount;
+        _updateMonthlyTokenDistributions(amount);
+        
+        emit StakingRewardsDistributed(stakingContract, amount);
+    }
+    
+    function configureEngagementIncentives(
+        uint256 totalIncentive,
+        uint256 distributionPeriod,
+        uint256 baseRewardRate
+    ) external override onlyTokenDistributor {
+        engagementIncentives.totalIncentive = totalIncentive;
+        engagementIncentives.distributionPeriod = distributionPeriod;
+        engagementIncentives.baseRewardRate = baseRewardRate;
+        
+        emit EngagementIncentivesConfigured(totalIncentive, distributionPeriod);
+    }
+    
+    function distributeEngagementIncentives(
+        address[] calldata users,
+        uint256[] calldata engagementPoints
+    ) external override onlyTokenDistributor nonReentrant {
+        require(address(karmaToken) != address(0), "Treasury: KARMA token not set");
+        
+        uint256[] memory amounts = new uint256[](users.length);
+        uint256 totalDistributed = 0;
+        
+        for (uint256 i = 0; i < users.length; i++) {
+            uint256 rewardAmount = engagementPoints[i] * engagementIncentives.baseRewardRate;
+            if (engagementPoints[i] >= 100) {
+                rewardAmount = (rewardAmount * engagementIncentives.bonusMultiplier) / 100;
+            }
+            amounts[i] = rewardAmount;
+            totalDistributed += rewardAmount;
+            karmaToken.safeTransfer(users[i], rewardAmount);
+        }
+        
+        _updateMonthlyTokenDistributions(totalDistributed);
+        emit EngagementIncentivesDistributed(users, amounts, totalDistributed);
+    }
+    
+    function getTokenDistributionConfig(TokenDistributionType distributionType)
+        external view override returns (TokenDistributionConfig memory) {
+        return _tokenDistributions[distributionType];
+    }
+    
+    // ============ STAGE 4.2: EXTERNAL CONTRACT INTEGRATION ============
+    
+    function configureExternalContract(
+        address contractAddress,
+        ExternalContractType contractType,
+        uint256 fundingAmount,
+        uint256 fundingFrequency,
+        uint256 minimumBalance
+    ) external override onlyExternalFunder {
+        if (_externalContracts[contractAddress].contractAddress == address(0)) {
+            _registeredExternalContracts.push(contractAddress);
+        }
+        
+        _externalContracts[contractAddress] = ExternalContractConfig({
+            contractAddress: contractAddress,
+            contractType: contractType,
+            fundingAmount: fundingAmount,
+            fundingFrequency: fundingFrequency,
+            lastFunding: block.timestamp,
+            minimumBalance: minimumBalance,
+            autoFundingEnabled: true
+        });
+        
+        emit ExternalContractConfigured(contractAddress, contractType);
+    }
+    
+    function fundPaymaster(
+        address paymasterAddress,
+        uint256 amount
+    ) external override onlyExternalFunder nonReentrant {
+        require(amount <= address(this).balance, "Treasury: insufficient balance");
+        
+        (bool success, ) = paymasterAddress.call{value: amount}("");
+        require(success, "Treasury: paymaster funding failed");
+        
+        _updateMonthlyExternalFunding(amount);
+        emit PaymasterFunded(paymasterAddress, amount);
+    }
+    
+    function fundBuybackBurn(
+        address buybackBurnAddress,
+        uint256 amount
+    ) external override onlyExternalFunder nonReentrant {
+        require(amount <= _categoryAllocations[AllocationCategory.BUYBACK].available, "Treasury: exceeds buyback allocation");
+        
+        _categoryAllocations[AllocationCategory.BUYBACK].available -= amount;
+        _categoryAllocations[AllocationCategory.BUYBACK].totalSpent += amount;
+        
+        (bool success, ) = buybackBurnAddress.call{value: amount}("");
+        require(success, "Treasury: buyback burn funding failed");
+        
+        _updateMonthlyExternalFunding(amount);
+        emit BuybackBurnFunded(buybackBurnAddress, amount);
+    }
+    
+    function triggerAutomaticFunding() external override onlyExternalFunder nonReentrant {
+        for (uint256 i = 0; i < _registeredExternalContracts.length; i++) {
+            address contractAddress = _registeredExternalContracts[i];
+            ExternalContractConfig storage config = _externalContracts[contractAddress];
+            
+            if (config.autoFundingEnabled && 
+                block.timestamp >= config.lastFunding + config.fundingFrequency) {
+                uint256 fundingAmount = config.fundingAmount;
+                
+                if (fundingAmount <= address(this).balance) {
+                    (bool success, ) = contractAddress.call{value: fundingAmount}("");
+                    if (success) {
+                        config.lastFunding = block.timestamp;
+                        _updateMonthlyExternalFunding(fundingAmount);
+                        emit AutomaticFundingTriggered(contractAddress, fundingAmount);
+                    }
+                }
+            }
+        }
+    }
+    
+    function monitorExternalBalance(address contractAddress) 
+        external view override returns (uint256 currentBalance, bool belowThreshold) {
+        ExternalContractConfig storage config = _externalContracts[contractAddress];
+        currentBalance = contractAddress.balance;
+        belowThreshold = currentBalance < config.minimumBalance;
+    }
+    
+    function getExternalContractConfig(address contractAddress)
+        external view override returns (ExternalContractConfig memory) {
+        return _externalContracts[contractAddress];
+    }
+    
+    // ============ STAGE 4.2: TRANSPARENCY AND GOVERNANCE ============
+    
+    function createGovernanceProposal(
+        string calldata title,
+        string calldata description,
+        uint256 requestedAmount,
+        AllocationCategory category,
+        uint256 votingPeriod
+    ) external override onlyGovernanceRole returns (uint256 proposalId) {
+        proposalId = _governanceProposalIdCounter++;
+        
+        GovernanceProposal storage proposal = _governanceProposals[proposalId];
+        proposal.id = proposalId;
+        proposal.proposer = msg.sender;
+        proposal.title = title;
+        proposal.description = description;
+        proposal.requestedAmount = requestedAmount;
+        proposal.category = category;
+        proposal.votingPeriod = votingPeriod;
+        proposal.createdAt = block.timestamp;
+        proposal.executed = false;
+        proposal.votesFor = 0;
+        proposal.votesAgainst = 0;
+        
+        _updateMonthlyGovernanceProposals();
+        emit GovernanceProposalCreated(proposalId, msg.sender, requestedAmount);
+    }
+    
+    function executeGovernanceProposal(uint256 proposalId) external override onlyGovernanceRole nonReentrant {
+        GovernanceProposal storage proposal = _governanceProposals[proposalId];
+        require(!proposal.executed, "Treasury: proposal already executed");
+        require(proposal.votesFor > proposal.votesAgainst, "Treasury: proposal not approved");
+        
+        proposal.executed = true;
+        
+        (bool success, ) = proposal.proposer.call{value: proposal.requestedAmount}("");
+        require(success, "Treasury: governance funding failed");
+        
+        emit GovernanceProposalExecuted(proposalId, proposal.requestedAmount);
+    }
+    
+    function getDetailedMonthlyReport(uint256 month, uint256 year)
+        external view override returns (
+            uint256 totalReceived,
+            uint256 totalDistributed,
+            uint256 tokenDistributions,
+            uint256 externalFunding,
+            uint256 governanceProposals,
+            uint256 emergencyWithdrawals,
+            uint256[] memory categoryBreakdown
+        ) {
+        totalReceived = _monthlyReceived[year][month];
+        totalDistributed = _monthlyDistributed[year][month];
+        tokenDistributions = _monthlyTokenDistributions[year][month];
+        externalFunding = _monthlyExternalFunding[year][month];
+        governanceProposals = _monthlyGovernanceProposals[year][month];
+        emergencyWithdrawals = _monthlyEmergencyWithdrawals[year][month];
+        
+        categoryBreakdown = new uint256[](4);
+        for (uint256 i = 0; i < 4; i++) {
+            categoryBreakdown[i] = _categoryAllocations[AllocationCategory(i)].totalSpent;
+        }
+    }
+    
+    function getPublicAnalytics() external view override returns (
+        uint256 totalTreasuryValue,
+        uint256 monthlyInflow,
+        uint256 monthlyOutflow,
+        uint256[] memory allocationPercentages,
+        uint256 tokensDistributed,
+        uint256 activeProposals
+    ) {
+        totalTreasuryValue = address(this).balance;
+        
+        uint256 currentYear = _getYear(block.timestamp);
+        uint256 currentMonth = _getMonth(block.timestamp);
+        monthlyInflow = _monthlyReceived[currentYear][currentMonth];
+        monthlyOutflow = _monthlyDistributed[currentYear][currentMonth];
+        
+        allocationPercentages = new uint256[](4);
+        allocationPercentages[0] = allocationConfig.marketingPercentage;
+        allocationPercentages[1] = allocationConfig.kolPercentage;
+        allocationPercentages[2] = allocationConfig.developmentPercentage;
+        allocationPercentages[3] = allocationConfig.buybackPercentage;
+        
+        tokensDistributed = _getTotalTokensDistributed();
+        activeProposals = _getActiveProposalCount();
+    }
+    
+    function exportTransactionHistory(
+        uint256 fromTimestamp,
+        uint256 toTimestamp,
+        string calldata transactionType
+    ) external view override returns (HistoricalTransaction[] memory transactions) {
+        uint256 count = 0;
+        for (uint256 i = 0; i < _historicalTransactions.length; i++) {
+            HistoricalTransaction storage tx = _historicalTransactions[i];
+            if (tx.timestamp >= fromTimestamp && tx.timestamp <= toTimestamp) {
+                if (bytes(transactionType).length == 0 || 
+                    keccak256(bytes(tx.transactionType)) == keccak256(bytes(transactionType))) {
+                    count++;
+                }
+            }
+        }
+        
+        transactions = new HistoricalTransaction[](count);
+        uint256 index = 0;
+        
+        for (uint256 i = 0; i < _historicalTransactions.length && index < count; i++) {
+            HistoricalTransaction storage tx = _historicalTransactions[i];
+            if (tx.timestamp >= fromTimestamp && tx.timestamp <= toTimestamp) {
+                if (bytes(transactionType).length == 0 || 
+                    keccak256(bytes(tx.transactionType)) == keccak256(bytes(transactionType))) {
+                    transactions[index] = tx;
+                    index++;
+                }
+            }
+        }
+    }
+    
+    function getTreasuryDashboard() external view override returns (
+        uint256 currentETHBalance,
+        uint256 currentTokenBalance,
+        uint256 pendingWithdrawals,
+        uint256 activeDistributions,
+        uint256 externalContractsCount,
+        uint256 monthlyBurn,
+        uint256[] memory allocationStatus
+    ) {
+        currentETHBalance = address(this).balance;
+        currentTokenBalance = address(karmaToken) != address(0) ? karmaToken.balanceOf(address(this)) : 0;
+        pendingWithdrawals = _getPendingWithdrawalCount();
+        activeDistributions = _getActiveDistributionCount();
+        externalContractsCount = _registeredExternalContracts.length;
+        
+        uint256 currentYear = _getYear(block.timestamp);
+        uint256 currentMonth = _getMonth(block.timestamp);
+        monthlyBurn = _monthlyExternalFunding[currentYear][currentMonth];
+        
+        allocationStatus = new uint256[](4);
+        for (uint256 i = 0; i < 4; i++) {
+            allocationStatus[i] = _categoryAllocations[AllocationCategory(i)].available;
+        }
+    }
+    
+    // ============ ADDITIONAL HELPER FUNCTIONS ============
+    
+    function _updateMonthlyTokenDistributions(uint256 amount) internal {
+        uint256 year = _getYear(block.timestamp);
+        uint256 month = _getMonth(block.timestamp);
+        _monthlyTokenDistributions[year][month] += amount;
+    }
+    
+    function _updateMonthlyExternalFunding(uint256 amount) internal {
+        uint256 year = _getYear(block.timestamp);
+        uint256 month = _getMonth(block.timestamp);
+        _monthlyExternalFunding[year][month] += amount;
+    }
+    
+    function _updateMonthlyGovernanceProposals() internal {
+        uint256 year = _getYear(block.timestamp);
+        uint256 month = _getMonth(block.timestamp);
+        _monthlyGovernanceProposals[year][month]++;
+    }
+    
+    function _getTotalTokensDistributed() internal view returns (uint256) {
+        uint256 total = 0;
+        for (uint256 i = 0; i <= uint256(TokenDistributionType.ENGAGEMENT_INCENTIVE); i++) {
+            total += _tokenDistributions[TokenDistributionType(i)].distributedAmount;
+        }
+        return total;
+    }
+    
+    function _getActiveProposalCount() internal view returns (uint256) {
+        uint256 count = 0;
+        for (uint256 i = 1; i < _proposalIdCounter; i++) {
+            if (_withdrawalProposals[i].status == WithdrawalStatus.PENDING) {
+                count++;
+            }
+        }
+        return count;
+    }
+    
+    function _getPendingWithdrawalCount() internal view returns (uint256) {
+        return _getActiveProposalCount();
+    }
+    
+    function _getActiveDistributionCount() internal view returns (uint256) {
+        uint256 count = 0;
+        for (uint256 i = 1; i < _batchIdCounter; i++) {
+            if (!_batchDistributions[i].executed) {
+                count++;
+            }
+        }
+        return count;
+    }
 } 
