@@ -375,7 +375,7 @@ contract SystemInitializationManager is ISystemInitializationManager, AccessCont
         
         parametersByCategory[category].push(parameterId);
         
-        emit ParameterSet(parameterId, targetContract, value);
+        emit ParameterConfigured(parameterId, targetContract, value);
         return parameterId;
     }
     

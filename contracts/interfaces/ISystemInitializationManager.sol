@@ -138,7 +138,7 @@ interface ISystemInitializationManager {
     event TaskCreated(bytes32 indexed taskId, string name, ParameterCategory category);
     event TaskCompleted(bytes32 indexed taskId, uint256 gasUsed);
     event TaskFailed(bytes32 indexed taskId, string reason, uint256 retryCount);
-    event ParameterSet(bytes32 indexed parameterId, address indexed targetContract, bytes value);
+    event ParameterConfigured(bytes32 indexed parameterId, address indexed targetContract, bytes value);
     event TokenDistributionStarted(bytes32 indexed distributionId, DistributionType distributionType, uint256 totalAmount);
     event TokenDistributionCompleted(bytes32 indexed distributionId, uint256 distributedAmount);
     event LiquidityPoolCreated(bytes32 indexed poolId, address indexed poolAddress, uint256 amountA, uint256 amountB);

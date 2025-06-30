@@ -692,7 +692,7 @@ contract OperationsMonitoringManager is IOperationsMonitoringManager, AccessCont
         require(startTime < endTime, "OpMonitoring: Invalid time range");
         require(sections.length > 0, "OpMonitoring: No sections specified");
         
-        reportId = keccak256(abi.encodePacked(
+        reportId = keccak256(abi.encode(
             reportType, startTime, endTime, sections, block.timestamp, _reportCounter++
         ));
         
