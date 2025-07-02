@@ -1,0 +1,206 @@
+{
+  "stage": "6.2",
+  "name": "Revenue Stream Integration",
+  "description": "Configuration for comprehensive revenue capture feeding tokenomics engine",
+  "network": {
+    "chainId": 42161,
+    "name": "Arbitrum One",
+    "rpc": "https://arb1.arbitrum.io/rpc",
+    "blockExplorer": "https://arbiscan.io"
+  },
+  "revenueStreams": {
+    "platformFees": {
+      "iNFTTrading": {
+        "enabled": true,
+        "feePercentage": 50,
+        "routeDestination": "buyback",
+        "minimumAmount": "1000000000000000"
+      },
+      "gameInAppPurchases": {
+        "enabled": true,
+        "feePercentage": 300,
+        "routeDestination": "treasury",
+        "minimumAmount": "5000000000000000"
+      },
+      "premiumSubscriptions": {
+        "enabled": true,
+        "fixedFee": "15000000000000000",
+        "routeDestination": "buyback",
+        "monthlyTarget": "10000000000000000000"
+      },
+      "assetTrading": {
+        "enabled": true,
+        "feePercentage": 250,
+        "routeDestination": "buyback",
+        "minimumAmount": "2500000000000000"
+      }
+    },
+    "creditSystem": {
+      "enabled": true,
+      "surchargePercentage": 1000,
+      "conversionRates": {
+        "creditToKarma": 2,
+        "usdToCredit": 1
+      },
+      "autoTriggerThreshold": "100000000000000000000",
+      "nonTransferableCredits": true
+    },
+    "externalIntegrations": {
+      "stripe": {
+        "enabled": true,
+        "webhookUrl": "/webhooks/stripe",
+        "confirmationTimeout": 300
+      },
+      "privy": {
+        "enabled": true,
+        "apiEndpoint": "https://api.privy.io",
+        "confirmationTimeout": 300
+      }
+    }
+  },
+  "routing": {
+    "autoRouting": {
+      "enabled": true,
+      "threshold": "1000000000000000000",
+      "buybackPercentage": 7500,
+      "treasuryPercentage": 2500
+    },
+    "manualRouting": {
+      "enabled": true,
+      "requiresApproval": true,
+      "minApprovers": 2
+    },
+    "destinations": {
+      "buyback": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "gasLimit": 500000
+      },
+      "treasury": {
+        "address": "0x0000000000000000000000000000000000000000",
+        "gasLimit": 200000
+      }
+    }
+  },
+  "security": {
+    "largeBuybackApproval": {
+      "threshold": "25000000000000000000",
+      "requiredApprovers": 3,
+      "timelock": 86400
+    },
+    "mevProtection": {
+      "enabled": true,
+      "maxSlippage": 500,
+      "frontrunningProtection": true,
+      "sandwichAttackPrevention": true
+    },
+    "cooldownPeriods": {
+      "largeBuyback": 86400,
+      "emergencyAction": 3600,
+      "priceUpdate": 300
+    },
+    "emergencyControls": {
+      "pauseEnabled": true,
+      "emergencyWithdrawal": true,
+      "circuitBreaker": {
+        "enabled": true,
+        "volumeThreshold": "1000000000000000000000",
+        "timeWindow": 3600
+      }
+    }
+  },
+  "oracles": {
+    "primary": {
+      "provider": "chainlink",
+      "ethUsdFeed": "0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612",
+      "karmaUsdFeed": "0x0000000000000000000000000000000000000000",
+      "updateFrequency": 300,
+      "maxStaleness": 3600
+    },
+    "backup": {
+      "providers": ["uniswap", "band", "dia"],
+      "fallbackEnabled": true,
+      "deviationThreshold": 500
+    },
+    "priceValidation": {
+      "enabled": true,
+      "maxDeviation": 1000,
+      "minUpdateInterval": 60,
+      "sanityChecks": true
+    }
+  },
+  "analytics": {
+    "revenueTracking": {
+      "enabled": true,
+      "granularity": "hourly",
+      "retentionPeriod": 31536000
+    },
+    "performanceMetrics": {
+      "enabled": true,
+      "trackGasCosts": true,
+      "trackExecutionTimes": true,
+      "trackSuccessRates": true
+    },
+    "reporting": {
+      "enabled": true,
+      "frequency": "daily",
+      "recipients": ["admin@karmalabs.io"],
+      "includeCharts": true
+    }
+  },
+  "automation": {
+    "batchProcessing": {
+      "enabled": true,
+      "batchSize": 10,
+      "maxBatchTime": 300,
+      "gasPriceThreshold": "50000000000"
+    },
+    "scheduling": {
+      "dailyReports": "0 0 * * *",
+      "weeklyAnalysis": "0 0 * * 0",
+      "monthlyReview": "0 0 1 * *"
+    }
+  },
+  "testing": {
+    "mockData": {
+      "enabled": false,
+      "revenueAmount": "1000000000000000000",
+      "feePercentages": {
+        "trading": 50,
+        "gaming": 300,
+        "premium": 0,
+        "assets": 250
+      }
+    },
+    "simulation": {
+      "enabled": false,
+      "scenarios": ["lowVolume", "highVolume", "extremeVolatility"],
+      "duration": 86400
+    }
+  },
+  "compliance": {
+    "reporting": {
+      "enabled": true,
+      "jurisdiction": "US",
+      "taxReporting": true,
+      "auditTrail": true
+    },
+    "kyc": {
+      "required": false,
+      "provider": "sumsub",
+      "minimumLevel": "basic"
+    },
+    "aml": {
+      "enabled": true,
+      "provider": "chainalysis",
+      "screeningLevel": "standard"
+    }
+  },
+  "deployment": {
+    "gasPrice": "100000000",
+    "gasLimit": "8000000",
+    "confirmations": 2,
+    "timeout": 600000,
+    "retries": 3,
+    "dependencies": ["stage6.1"]
+  }
+} 

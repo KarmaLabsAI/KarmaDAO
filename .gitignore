@@ -1,5 +1,7 @@
 # Project-specific directories
 .project/
+/.company/
+.localhost/
 
 # Dependency directories
 node_modules/

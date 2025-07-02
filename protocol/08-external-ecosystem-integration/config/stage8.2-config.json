@@ -1,0 +1,255 @@
+{
+  "stage": "8.2",
+  "name": "Platform Application Integration",
+  "description": "Configuration for SillyPort, SillyHotel, and KarmaLabs platform integrations",
+  "platforms": {
+    "SillyPortIntegration": {
+      "gasLimit": 3000000,
+      "subscriptionTiers": {
+        "FREE": {
+          "monthlyFee": "0",
+          "apiCallsLimit": 10,
+          "tokensLimit": 1000,
+          "featuresLimit": 1
+        },
+        "BASIC": {
+          "monthlyFee": "5",
+          "apiCallsLimit": 100,
+          "tokensLimit": 10000,
+          "featuresLimit": 5
+        },
+        "PREMIUM": {
+          "monthlyFee": "15",
+          "apiCallsLimit": 1000,
+          "tokensLimit": 100000,
+          "featuresLimit": 20
+        },
+        "ENTERPRISE": {
+          "monthlyFee": "50",
+          "apiCallsLimit": 10000,
+          "tokensLimit": 1000000,
+          "featuresLimit": 100
+        }
+      },
+      "pricing": {
+        "iNFTMinting": "0.01",
+        "aiChatSession": "0.001",
+        "premiumFeatures": "0.005",
+        "contentAccess": "0.002"
+      },
+      "features": {
+        "maxContentSize": 10485760,
+        "supportedFormats": ["jpg", "png", "gif", "mp4", "mp3", "pdf"],
+        "aiModels": [
+          "gpt-4",
+          "claude-3",
+          "stable-diffusion-xl",
+          "dall-e-3"
+        ]
+      }
+    },
+    "SillyHotelIntegration": {
+      "gasLimit": 2500000,
+      "gameItems": {
+        "CHARACTER": {
+          "mintCost": "0.05",
+          "upgradeCost": "0.01",
+          "maxLevel": 100
+        },
+        "EQUIPMENT": {
+          "baseCost": "0.001",
+          "upgradeMultiplier": 1.5,
+          "maxRarity": 5
+        },
+        "CONSUMABLE": {
+          "baseCost": "0.0001",
+          "bulkDiscount": 0.1,
+          "maxStack": 1000
+        },
+        "COSMETIC": {
+          "baseCost": "0.005",
+          "seasonalMultiplier": 2.0,
+          "tradeable": true
+        }
+      },
+      "economics": {
+        "platformFee": 250,
+        "creatorRoyalty": 500,
+        "maxSupplyPerItem": 10000,
+        "priceFloor": "0.0001"
+      },
+      "gameplay": {
+        "maxCharactersPerUser": 10,
+        "dailyRewards": "0.001",
+        "questRewards": "0.01",
+        "leaderboardRewards": "1.0"
+      }
+    },
+    "KarmaLabsIntegration": {
+      "gasLimit": 4000000,
+      "marketplace": {
+        "marketplaceFee": 250,
+        "maxRoyalty": 1000,
+        "minListingDuration": 3600,
+        "maxListingDuration": 2592000,
+        "verificationReward": "10"
+      },
+      "assetTypes": {
+        "IMAGE": {
+          "maxSize": 50000000,
+          "formats": ["jpg", "png", "gif", "svg", "webp"],
+          "aiVerification": true
+        },
+        "VIDEO": {
+          "maxSize": 500000000,
+          "formats": ["mp4", "mov", "avi", "webm"],
+          "aiVerification": true
+        },
+        "AUDIO": {
+          "maxSize": 100000000,
+          "formats": ["mp3", "wav", "flac", "ogg"],
+          "aiVerification": false
+        },
+        "MODEL_3D": {
+          "maxSize": 200000000,
+          "formats": ["obj", "fbx", "gltf", "blend"],
+          "aiVerification": true
+        }
+      },
+      "verification": {
+        "aiModels": [
+          "stable-diffusion-v1.5",
+          "stable-diffusion-xl",
+          "dall-e-3",
+          "midjourney-v6",
+          "leonardo-ai"
+        ],
+        "verifierStake": "100",
+        "disputePeriod": 604800,
+        "consensusThreshold": 0.67
+      }
+    }
+  },
+  "feeCollection": {
+    "enabled": true,
+    "routes": {
+      "buybackBurn": "0x742d35Cc6634C0532925a3b8D40b4ed7C3a9D0Cb",
+      "treasury": "0x8ba1f109551bD432803012645Hac136c5532213",
+      "development": "0x2546BcD3c84621e976D8185a91A922aE77ECEc30"
+    },
+    "distribution": {
+      "buybackBurn": 50,
+      "treasury": 30,
+      "development": 20
+    }
+  },
+  "payments": {
+    "supportedTokens": [
+      {
+        "symbol": "KARMA",
+        "address": "0x742d35Cc6634C0532925a3b8D40b4ed7C3a9D0Cb",
+        "decimals": 18,
+        "primary": true
+      },
+      {
+        "symbol": "WETH",
+        "address": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+        "decimals": 18,
+        "primary": false
+      }
+    ],
+    "priceOracles": [
+      {
+        "pair": "KARMA/WETH",
+        "address": "0x742d35Cc6634C0532925a3b8D40b4ed7C3a9D0Cb",
+        "heartbeat": 3600
+      }
+    ]
+  },
+  "integration": {
+    "apis": {
+      "sillyPort": {
+        "baseUrl": "https://api.sillyport.com",
+        "version": "v1",
+        "rateLimit": 1000
+      },
+      "sillyHotel": {
+        "baseUrl": "https://api.sillyhotel.com",
+        "version": "v1",
+        "rateLimit": 500
+      },
+      "karmaLabs": {
+        "baseUrl": "https://api.karmalabs.com",
+        "version": "v1",
+        "rateLimit": 2000
+      }
+    },
+    "webhooks": {
+      "enabled": true,
+      "retryAttempts": 3,
+      "timeout": 30000,
+      "endpoints": {
+        "minting": "/webhooks/mint",
+        "sales": "/webhooks/sale",
+        "verification": "/webhooks/verify"
+      }
+    }
+  },
+  "analytics": {
+    "enabled": true,
+    "metrics": [
+      "totalVolume",
+      "uniqueUsers",
+      "transactionCount",
+      "revenueGenerated",
+      "assetsMinted",
+      "verificationRate"
+    ],
+    "reporting": {
+      "interval": "daily",
+      "retention": 365,
+      "export": true
+    }
+  },
+  "security": {
+    "accessControl": {
+      "adminMultisig": "0x742d35Cc6634C0532925a3b8D40b4ed7C3a9D0Cb",
+      "operatorRole": "0x8ba1f109551bD432803012645Hac136c5532213",
+      "pauseAuthority": "0x2546BcD3c84621e976D8185a91A922aE77ECEc30"
+    },
+    "rateLimiting": {
+      "enabled": true,
+      "windowSize": 60,
+      "maxRequests": 100,
+      "penaltyDuration": 300
+    },
+    "contentFiltering": {
+      "enabled": true,
+      "categories": ["violence", "adult", "hate", "spam"],
+      "threshold": 0.8
+    }
+  },
+  "deployment": {
+    "order": [
+      "SillyPortIntegration",
+      "SillyHotelIntegration",
+      "KarmaLabsIntegration"
+    ],
+    "dependencies": [
+      "KarmaToken",
+      "FeeCollector",
+      "ZeroGIntegration"
+    ],
+    "verification": {
+      "enabled": true,
+      "networks": ["arbitrum", "polygon"],
+      "delay": 30
+    },
+    "postDeploy": [
+      "setupFeeRouting",
+      "configurePlatforms",
+      "enableIntegrations",
+      "initializeMarketplace"
+    ]
+  }
+} 

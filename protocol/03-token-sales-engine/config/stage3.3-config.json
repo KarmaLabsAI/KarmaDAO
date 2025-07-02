@@ -1,0 +1,298 @@
+{
+  "name": "Stage 3.3: Revenue and Fund Management Configuration",
+  "description": "Configuration parameters for secure fund collection, allocation, and transparency",
+  "version": "1.0.0",
+  "treasury": {
+    "address": "TREASURY_MULTISIG_ADDRESS",
+    "contractName": "Treasury",
+    "multisigConfig": {
+      "requiredSignatures": 3,
+      "totalSigners": 5,
+      "signers": [
+        "SIGNER_1_ADDRESS",
+        "SIGNER_2_ADDRESS", 
+        "SIGNER_3_ADDRESS",
+        "SIGNER_4_ADDRESS",
+        "SIGNER_5_ADDRESS"
+      ]
+    },
+    "integration": {
+      "autoForwarding": {
+        "enabled": true,
+        "gasLimit": 100000,
+        "retryAttempts": 3,
+        "retryDelay": 300
+      },
+      "batchProcessing": {
+        "enabled": true,
+        "batchSize": 50,
+        "processingInterval": 3600
+      }
+    }
+  },
+  "fundAllocation": {
+    "categories": {
+      "marketing": {
+        "percentage": 30,
+        "description": "Marketing and brand awareness campaigns",
+        "wallets": [
+          {
+            "name": "Marketing Operations",
+            "address": "MARKETING_WALLET_ADDRESS",
+            "allocation": 70
+          },
+          {
+            "name": "Influencer Partnerships",
+            "address": "INFLUENCER_WALLET_ADDRESS", 
+            "allocation": 30
+          }
+        ]
+      },
+      "kol": {
+        "percentage": 20,
+        "description": "Key Opinion Leader partnerships and engagement",
+        "wallets": [
+          {
+            "name": "KOL Management",
+            "address": "KOL_WALLET_ADDRESS",
+            "allocation": 100
+          }
+        ]
+      },
+      "development": {
+        "percentage": 30,
+        "description": "Product development and engineering",
+        "wallets": [
+          {
+            "name": "Core Development",
+            "address": "DEV_WALLET_ADDRESS",
+            "allocation": 60
+          },
+          {
+            "name": "Security & Audits",
+            "address": "SECURITY_WALLET_ADDRESS",
+            "allocation": 25
+          },
+          {
+            "name": "Infrastructure",
+            "address": "INFRA_WALLET_ADDRESS",
+            "allocation": 15
+          }
+        ]
+      },
+      "buyback": {
+        "percentage": 20,
+        "description": "Token buyback and burn mechanism funding",
+        "wallets": [
+          {
+            "name": "Buyback Reserve",
+            "address": "BUYBACK_WALLET_ADDRESS",
+            "allocation": 100
+          }
+        ]
+      }
+    },
+    "validation": {
+      "totalPercentage": 100,
+      "minimumAllocation": 5,
+      "maximumAllocation": 50,
+      "rebalancingEnabled": true,
+      "rebalancingThreshold": 5
+    }
+  },
+  "reporting": {
+    "transparency": {
+      "enablePublicReporting": true,
+      "reportingFrequency": "monthly",
+      "reportingFormat": ["json", "csv", "pdf"],
+      "publicDashboard": "https://dashboard.karmalabs.com/treasury"
+    },
+    "compliance": {
+      "kycReporting": true,
+      "amlReporting": true,
+      "taxReporting": true,
+      "jurisdictions": ["US", "EU", "UK", "SG"],
+      "reportingInterval": "quarterly"
+    },
+    "analytics": {
+      "participantAnalytics": true,
+      "revenueAnalytics": true,
+      "allocationAnalytics": true,
+      "performanceMetrics": true
+    }
+  },
+  "security": {
+    "antiAbuse": {
+      "reentrancyProtection": true,
+      "flashLoanProtection": true,
+      "frontRunningProtection": true,
+      "sandwichAttackProtection": true
+    },
+    "rateLimiting": {
+      "enabled": true,
+      "windowSize": 300,
+      "maxPurchasesPerWindow": 1,
+      "globalRateLimit": 1000,
+      "perAddressLimit": 5
+    },
+    "monitoring": {
+      "suspiciousActivityDetection": true,
+      "largeTransactionThreshold": "10000000000000000000",
+      "multipleAddressDetection": true,
+      "botDetection": true,
+      "alertingEndpoint": "https://alerts.karmalabs.com/webhook"
+    },
+    "emergencyControls": {
+      "pauseEnabled": true,
+      "emergencyWithdrawEnabled": true,
+      "emergencyContactAddress": "EMERGENCY_CONTACT_ADDRESS",
+      "circuitBreakerThreshold": "50000000000000000000"
+    }
+  },
+  "externalIntegrations": {
+    "analytics": {
+      "platforms": [
+        {
+          "name": "Dune Analytics",
+          "enabled": true,
+          "apiKey": "DUNE_API_KEY",
+          "dashboardId": "dune_dashboard_id"
+        },
+        {
+          "name": "DefiLlama",
+          "enabled": true,
+          "protocolSlug": "karma-labs"
+        },
+        {
+          "name": "CoinGecko", 
+          "enabled": true,
+          "apiKey": "COINGECKO_API_KEY"
+        }
+      ]
+    },
+    "compliance": {
+      "providers": [
+        {
+          "name": "Chainalysis",
+          "enabled": true,
+          "apiKey": "CHAINALYSIS_API_KEY",
+          "riskScoreThreshold": 70
+        },
+        {
+          "name": "Elliptic",
+          "enabled": false,
+          "apiKey": "ELLIPTIC_API_KEY"
+        }
+      ]
+    },
+    "notifications": {
+      "discord": {
+        "enabled": true,
+        "webhookUrl": "DISCORD_WEBHOOK_URL",
+        "channels": {
+          "general": "GENERAL_CHANNEL_ID",
+          "treasury": "TREASURY_CHANNEL_ID",
+          "alerts": "ALERTS_CHANNEL_ID"
+        }
+      },
+      "telegram": {
+        "enabled": true,
+        "botToken": "TELEGRAM_BOT_TOKEN",
+        "chatId": "TELEGRAM_CHAT_ID"
+      },
+      "email": {
+        "enabled": true,
+        "provider": "sendgrid",
+        "apiKey": "SENDGRID_API_KEY",
+        "recipients": [
+          "treasury@karmalabs.com",
+          "admin@karmalabs.com"
+        ]
+      }
+    }
+  },
+  "automation": {
+    "fundForwarding": {
+      "enabled": true,
+      "triggerThreshold": "1000000000000000000",
+      "batchingInterval": 3600,
+      "maxGasPrice": "50000000000"
+    },
+    "reporting": {
+      "automaticReports": true,
+      "reportSchedule": "0 0 1 * *",
+      "recipients": [
+        "treasury@karmalabs.com",
+        "compliance@karmalabs.com"
+      ]
+    },
+    "alerts": {
+      "largeTransactions": true,
+      "suspiciousActivity": true,
+      "systemErrors": true,
+      "allocationThresholds": true
+    }
+  },
+  "recovery": {
+    "emergencyWithdraw": {
+      "enabled": true,
+      "requiredSignatures": 4,
+      "timelock": 86400,
+      "maximumWithdrawal": "50000000000000000000"
+    },
+    "fundRecovery": {
+      "enabled": true,
+      "recoveryAddress": "RECOVERY_MULTISIG_ADDRESS",
+      "activationThreshold": 3,
+      "recoveryDelay": 604800
+    },
+    "contractUpgrade": {
+      "enabled": true,
+      "upgradeDelay": 604800,
+      "governanceRequired": true,
+      "communityVoteThreshold": 67
+    }
+  },
+  "performance": {
+    "gasOptimization": {
+      "enabled": true,
+      "targetGasUsage": 200000,
+      "batchProcessing": true,
+      "gasTokens": false
+    },
+    "caching": {
+      "enabled": true,
+      "cacheDuration": 300,
+      "cacheProvider": "redis"
+    },
+    "scaling": {
+      "layer2Support": true,
+      "arbitrumOptimized": true,
+      "crossChainBridging": false
+    }
+  },
+  "testing": {
+    "testnet": {
+      "enabled": true,
+      "networks": ["goerli", "mumbai", "arbitrum-goerli"],
+      "faucetIntegration": true
+    },
+    "simulation": {
+      "enabled": true,
+      "scenarios": [
+        "high_volume_purchases",
+        "emergency_pause",
+        "fund_recovery",
+        "allocation_rebalancing"
+      ]
+    },
+    "monitoring": {
+      "metricsCollection": true,
+      "performanceBaselines": {
+        "averageGasUsage": 180000,
+        "averageTransactionTime": 15,
+        "successRate": 99.9
+      }
+    }
+  }
+} 

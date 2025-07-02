@@ -1,0 +1,27 @@
+{
+  "name": "karma-stage1-core-token-infrastructure",
+  "version": "1.0.0",
+  "description": "Stage 1: Core Token Infrastructure - KarmaToken and Administrative Controls",
+  "main": "scripts/deploy-stage1.1.js",
+  "scripts": {
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "deploy:stage1.1": "hardhat run scripts/deploy-stage1.1.js",
+    "deploy:stage1.2": "hardhat run scripts/deploy-stage1.2.js",
+    "deploy:all": "npm run deploy:stage1.1 && npm run deploy:stage1.2",
+    "verify": "hardhat run scripts/verify-contracts.js",
+    "coverage": "hardhat coverage"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
+    "hardhat": "^2.19.0"
+  },
+  "devDependencies": {
+    "chai": "^4.3.7",
+    "ethers": "^6.8.0"
+  },
+  "keywords": ["karma", "token", "ethereum", "solidity", "stage1"],
+  "author": "Karma Labs",
+  "license": "MIT"
+} 

@@ -1,0 +1,152 @@
+{
+  "stage": "5.1",
+  "name": "Paymaster Contract Development",
+  "description": "Configuration for EIP-4337 gasless transaction system",
+  "contracts": {
+    "Paymaster": {
+      "name": "KarmaPaymaster",
+      "description": "ERC-4337 compliant Paymaster contract",
+      "gasLimit": 3000000,
+      "constructorParams": {
+        "entryPoint": "0x0000000000000000000000000000000000000000",
+        "treasury": "0x0000000000000000000000000000000000000000",
+        "karmaToken": "0x0000000000000000000000000000000000000000",
+        "admin": "0x0000000000000000000000000000000000000000"
+      }
+    }
+  },
+  "sponsorshipConfig": {
+    "policy": "TOKEN_HOLDERS",
+    "maxGasPerUser": 1000000,
+    "maxGasPerOperation": 500000,
+    "dailyGasLimit": 1000000,
+    "monthlyGasLimit": 25000000,
+    "minimumStakeRequired": "1000000000000000000000",
+    "isActive": true
+  },
+  "gasLimits": {
+    "tiers": {
+      "STANDARD": {
+        "multiplier": 1.0,
+        "dailyLimit": 1000000,
+        "monthlyLimit": 25000000,
+        "maxPerOperation": 500000
+      },
+      "VIP": {
+        "multiplier": 2.0,
+        "dailyLimit": 2000000,
+        "monthlyLimit": 50000000,
+        "maxPerOperation": 1000000
+      },
+      "STAKER": {
+        "multiplier": 1.5,
+        "dailyLimit": 1500000,
+        "monthlyLimit": 37500000,
+        "maxPerOperation": 750000
+      },
+      "PREMIUM": {
+        "multiplier": 3.0,
+        "dailyLimit": 3000000,
+        "monthlyLimit": 75000000,
+        "maxPerOperation": 1500000
+      }
+    }
+  },
+  "autoRefill": {
+    "enabled": true,
+    "threshold": "10000000000000000000",
+    "refillAmount": "50000000000000000000",
+    "minBalance": "1000000000000000000"
+  },
+  "gasPricing": {
+    "maxGasPrice": "100000000000",
+    "targetGasPrice": "20000000000",
+    "priorityFeeMultiplier": 1.1,
+    "maxFeeMultiplier": 1.2
+  },
+  "security": {
+    "emergencyStop": {
+      "enabled": true,
+      "authorizedRoles": ["EMERGENCY_ROLE", "DEFAULT_ADMIN_ROLE"]
+    },
+    "rateLimiting": {
+      "enabled": true,
+      "abuseThreshold": 10,
+      "blacklistEnabled": true
+    },
+    "whitelisting": {
+      "contractWhitelistEnabled": true,
+      "functionLevelControl": true,
+      "defaultWhitelistStatus": false
+    }
+  },
+  "funding": {
+    "initialFunding": "100000000000000000000000",
+    "treasuryIntegration": true,
+    "autoFundingEnabled": true,
+    "fundingThreshold": "10000000000000000000"
+  },
+  "monitoring": {
+    "metricsEnabled": true,
+    "costTracking": true,
+    "userAnalytics": true,
+    "performanceMetrics": true
+  },
+  "testing": {
+    "mockContracts": {
+      "MockEntryPoint": true,
+      "MockTreasury": true,
+      "MockERC20": true
+    },
+    "testUsers": {
+      "count": 5,
+      "initialBalance": "1000000000000000000000"
+    },
+    "testScenarios": [
+      "basic_sponsorship",
+      "tier_management",
+      "rate_limiting",
+      "emergency_stop",
+      "auto_refill",
+      "abuse_detection"
+    ]
+  },
+  "deployment": {
+    "network": "hardhat",
+    "gasPrice": "20000000000",
+    "gasLimit": 8000000,
+    "confirmations": 1,
+    "timeout": 300000,
+    "verify": false
+  },
+  "integration": {
+    "stage1Dependencies": {
+      "KarmaToken": {
+        "required": true,
+        "interface": "IKarmaToken",
+        "functions": ["balanceOf", "transfer", "notifyPaymasterOperation"]
+      }
+    },
+    "stage4Dependencies": {
+      "Treasury": {
+        "required": true,
+        "interface": "ITreasury",
+        "functions": ["fundPaymaster", "getBalance"]
+      }
+    }
+  },
+  "validation": {
+    "preDeployment": [
+      "check_dependencies",
+      "validate_configuration",
+      "estimate_gas_costs",
+      "verify_admin_roles"
+    ],
+    "postDeployment": [
+      "verify_contract_deployment",
+      "test_basic_functionality",
+      "validate_integrations",
+      "check_security_measures"
+    ]
+  }
+} 

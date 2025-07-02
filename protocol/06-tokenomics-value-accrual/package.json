@@ -1,0 +1,101 @@
+{
+  "name": "@karmalabs/tokenomics-value-accrual",
+  "version": "1.0.0",
+  "description": "Stage 6: Tokenomics and Value Accrual - Automated token supply management and value mechanisms",
+  "main": "index.js",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test:stage6.1": "hardhat test test/Stage6.1.test.js",
+    "test:stage6.2": "hardhat test test/Stage6.2.test.js",
+    "test:buyback": "hardhat test test/BuybackBurn.test.js",
+    "test:fee-collector": "hardhat test test/FeeCollector.test.js",
+    "deploy:stage6.1": "hardhat run scripts/deploy-stage6.1.js",
+    "deploy:stage6.2": "hardhat run scripts/deploy-stage6.2.js",
+    "deploy:buyback": "hardhat run scripts/deploy-buyback-burn.js",
+    "deploy:automation": "hardhat run scripts/setup-automation.js",
+    "verify": "hardhat verify",
+    "coverage": "hardhat coverage",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "size": "hardhat size-contracts",
+    "gas-report": "REPORT_GAS=true hardhat test",
+    "clean": "hardhat clean",
+    "flatten": "hardhat flatten",
+    "analyze": "hardhat analyze",
+    "simulate": "node scripts/simulate-buyback.js",
+    "monitor": "node scripts/monitor-revenue.js"
+  },
+  "keywords": [
+    "tokenomics",
+    "buyback",
+    "burn",
+    "revenue",
+    "dex",
+    "automation",
+    "value-accrual",
+    "defi",
+    "arbitrum"
+  ],
+  "author": "Karma Labs",
+  "license": "MIT",
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.9.0",
+    "@openzeppelin/contracts-upgradeable": "^4.9.0",
+    "@chainlink/contracts": "^0.8.0",
+    "@uniswap/v3-core": "^1.0.1",
+    "@uniswap/v3-periphery": "^1.4.4",
+    "@uniswap/v3-sdk": "^3.10.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+    "@nomicfoundation/hardhat-verify": "^1.0.0",
+    "@typechain/ethers-v6": "^0.4.0",
+    "@typechain/hardhat": "^8.0.0",
+    "@types/chai": "^4.2.0",
+    "@types/mocha": ">=9.1.0",
+    "chai": "^4.2.0",
+    "eslint": "^8.42.0",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-import": "^2.27.5",
+    "eslint-plugin-n": "^15.7.0",
+    "eslint-plugin-promise": "^6.1.1",
+    "ethers": "^6.4.0",
+    "hardhat": "^2.14.0",
+    "hardhat-contract-sizer": "^2.10.0",
+    "hardhat-gas-reporter": "^1.0.8",
+    "solidity-coverage": "^0.8.1",
+    "typechain": "^8.2.0",
+    "typescript": ">=4.5.0"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/karma-labs/smart-contracts.git",
+    "directory": "protocol/06-tokenomics-value-accrual"
+  },
+  "bugs": {
+    "url": "https://github.com/karma-labs/smart-contracts/issues"
+  },
+  "homepage": "https://karmalabs.io",
+  "files": [
+    "contracts/",
+    "scripts/",
+    "test/",
+    "utils/",
+    "config/",
+    "hardhat.config.js",
+    "README.md"
+  ],
+  "directories": {
+    "contracts": "./contracts",
+    "test": "./test",
+    "scripts": "./scripts"
+  }
+} 

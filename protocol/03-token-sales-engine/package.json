@@ -1,0 +1,85 @@
+{
+  "name": "@karma-labs/token-sales-engine",
+  "version": "1.0.0",
+  "description": "Stage 3: Token Sales Engine - Multi-phase token sale system with sophisticated revenue management",
+  "main": "index.js",
+  "scripts": {
+    "deploy:stage3.1": "npx hardhat run scripts/deploy-stage3.1.js --network arbitrum",
+    "deploy:stage3.2": "npx hardhat run scripts/deploy-stage3.2.js --network arbitrum", 
+    "deploy:stage3.3": "npx hardhat run scripts/deploy-stage3.3.js --network arbitrum",
+    "setup:stage3.1": "npx hardhat run scripts/setup-stage3.1.js --network arbitrum",
+    "setup:stage3.2": "npx hardhat run scripts/setup-stage3.2.js --network arbitrum",
+    "setup:stage3.3": "npx hardhat run scripts/setup-stage3.3.js --network arbitrum",
+    "validate:stage3.1": "npx hardhat run scripts/validate-stage3.1.js --network arbitrum",
+    "validate:stage3.2": "npx hardhat run scripts/validate-stage3.2.js --network arbitrum", 
+    "validate:stage3.3": "npx hardhat run scripts/validate-stage3.3.js --network arbitrum",
+    "test": "npx hardhat test",
+    "test:stage3.1": "npx hardhat test test/Stage3.1.test.js",
+    "test:stage3.2": "npx hardhat test test/Stage3.2.test.js",
+    "test:stage3.3": "npx hardhat test test/Stage3.3.test.js",
+    "test:coverage": "npx hardhat coverage",
+    "compile": "npx hardhat compile",
+    "clean": "npx hardhat clean",
+    "verify": "npx hardhat verify",
+    "whitelist:generate": "node utils/generate-whitelist.js",
+    "whitelist:validate": "node utils/validate-whitelist.js",
+    "merkle:generate": "node utils/generate-merkle-tree.js",
+    "price:calculate": "node utils/price-calculator.js"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.9.0",
+    "@openzeppelin/contracts-upgradeable": "^4.9.0",
+    "ethers": "^6.0.0",
+    "merkletreejs": "^0.3.10",
+    "keccak256": "^1.0.6"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-verify": "^1.0.0",
+    "@typechain/ethers-v6": "^0.4.0",
+    "@typechain/hardhat": "^8.0.0",
+    "@types/chai": "^4.2.0",
+    "@types/mocha": ">=9.1.0",
+    "chai": "^4.2.0",
+    "hardhat": "^2.17.1",
+    "hardhat-gas-reporter": "^1.0.8",
+    "solidity-coverage": "^0.8.1",
+    "typechain": "^8.3.0"
+  },
+  "keywords": [
+    "ethereum",
+    "arbitrum",
+    "token-sale",
+    "fundraising",
+    "smart-contracts",
+    "defi",
+    "karma-labs",
+    "ico",
+    "whitelist",
+    "vesting"
+  ],
+  "author": "Karma Labs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/karma-labs/smart-contracts.git",
+    "directory": "protocol/03-token-sales-engine"
+  },
+  "bugs": {
+    "url": "https://github.com/karma-labs/smart-contracts/issues"
+  },
+  "homepage": "https://karmalabs.com",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "hardhat": {
+    "defaultNetwork": "hardhat"
+  },
+  "mocha": {
+    "timeout": 40000
+  }
+} 

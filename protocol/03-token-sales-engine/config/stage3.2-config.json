@@ -1,0 +1,245 @@
+{
+  "name": "Stage 3.2: Sale Phase Implementations Configuration",
+  "description": "Configuration parameters for specific sale phase mechanics and implementations",
+  "version": "1.0.0",
+  "phaseSchedule": {
+    "privateSale": {
+      "phase": 1,
+      "scheduledMonth": 3,
+      "duration": 60,
+      "startTimeOffset": 7776000,
+      "description": "Private sale for accredited investors"
+    },
+    "preSale": {
+      "phase": 2,
+      "scheduledMonth": 7,
+      "duration": 30,
+      "startTimeOffset": 15552000,
+      "description": "Pre-sale for community members"
+    },
+    "publicSale": {
+      "phase": 3,
+      "scheduledMonth": 9,
+      "duration": 30,
+      "startTimeOffset": 18144000,
+      "description": "Public IDO launch"
+    }
+  },
+  "privateSaleConfig": {
+    "pricing": {
+      "tokenPrice": "0.02",
+      "tokenPriceWei": "20000000000000000",
+      "ethToUsdRate": 1000,
+      "tokensPerEth": 50000
+    },
+    "allocation": {
+      "totalTokens": "100000000",
+      "totalTokensWei": "100000000000000000000000000",
+      "targetRaise": "2000000",
+      "targetRaiseWei": "2000000000000000000000"
+    },
+    "limits": {
+      "minimumPurchaseUsd": 25000,
+      "maximumPurchaseUsd": 200000,
+      "minimumPurchaseWei": "25000000000000000000",
+      "maximumPurchaseWei": "200000000000000000000"
+    },
+    "requirements": {
+      "kycRequired": true,
+      "accreditationRequired": true,
+      "whitelistRequired": true,
+      "minimumNetWorth": 1000000,
+      "minimumIncome": 200000
+    },
+    "vesting": {
+      "immediatePercent": 0,
+      "vestedPercent": 100,
+      "vestingDuration": 15552000,
+      "cliffDuration": 0,
+      "releaseSchedule": "linear"
+    },
+    "integration": {
+      "vestingVault": true,
+      "kycProvider": "JUMIO",
+      "accreditationProvider": "VERITY"
+    }
+  },
+  "preSaleConfig": {
+    "pricing": {
+      "tokenPrice": "0.04",
+      "tokenPriceWei": "40000000000000000",
+      "ethToUsdRate": 1000,
+      "tokensPerEth": 25000
+    },
+    "allocation": {
+      "totalTokens": "100000000",
+      "totalTokensWei": "100000000000000000000000000",
+      "targetRaise": "4000000",
+      "targetRaiseWei": "4000000000000000000000"
+    },
+    "limits": {
+      "minimumPurchaseUsd": 1000,
+      "maximumPurchaseUsd": 10000,
+      "minimumPurchaseWei": "1000000000000000000",
+      "maximumPurchaseWei": "10000000000000000000"
+    },
+    "requirements": {
+      "kycRequired": true,
+      "accreditationRequired": false,
+      "whitelistRequired": true,
+      "communityEngagementScore": 20
+    },
+    "vesting": {
+      "immediatePercent": 50,
+      "vestedPercent": 50,
+      "vestingDuration": 7776000,
+      "cliffDuration": 0,
+      "releaseSchedule": "linear"
+    },
+    "bonuses": {
+      "engagementBonus": {
+        "enabled": true,
+        "tiers": [
+          { "minScore": 20, "maxScore": 39, "bonusPercent": 5 },
+          { "minScore": 40, "maxScore": 59, "bonusPercent": 10 },
+          { "minScore": 60, "maxScore": 79, "bonusPercent": 15 },
+          { "minScore": 80, "maxScore": 100, "bonusPercent": 20 }
+        ]
+      },
+      "referralBonus": {
+        "enabled": true,
+        "bonusPerReferral": 2,
+        "maxBonusPercent": 20,
+        "requiresPrivateSaleParticipation": true
+      }
+    }
+  },
+  "publicSaleConfig": {
+    "pricing": {
+      "tokenPrice": "0.05",
+      "tokenPriceWei": "50000000000000000",
+      "ethToUsdRate": 1000,
+      "tokensPerEth": 20000
+    },
+    "allocation": {
+      "totalTokens": "150000000",
+      "totalTokensWei": "150000000000000000000000000",
+      "targetRaise": "7500000",
+      "targetRaiseWei": "7500000000000000000000"
+    },
+    "limits": {
+      "minimumPurchaseUsd": 100,
+      "maximumPurchaseUsd": 5000,
+      "minimumPurchaseWei": "100000000000000000",
+      "maximumPurchaseWei": "5000000000000000000",
+      "maxPurchasesPerWallet": 1
+    },
+    "requirements": {
+      "kycRequired": false,
+      "accreditationRequired": false,
+      "whitelistRequired": false,
+      "openToPublic": true
+    },
+    "vesting": {
+      "immediatePercent": 100,
+      "vestedPercent": 0,
+      "vestingDuration": 0,
+      "cliffDuration": 0,
+      "releaseSchedule": "immediate"
+    },
+    "mevProtection": {
+      "enabled": true,
+      "defaultSlippageTolerance": 300,
+      "maxSlippageTolerance": 1000,
+      "frontRunningDetection": true
+    },
+    "liquiditySetup": {
+      "uniswapV3": {
+        "factory": "UNISWAP_V3_FACTORY",
+        "router": "UNISWAP_V3_ROUTER",
+        "weth": "WETH_ADDRESS",
+        "fee": 3000,
+        "initialEthAmount": "1000000000000000000000",
+        "initialTokenAmount": "50000000000000000000000",
+        "tickLower": -276324,
+        "tickUpper": -276320
+      }
+    }
+  },
+  "engagementTracking": {
+    "metrics": [
+      "discordActivity",
+      "twitterEngagement", 
+      "mediumReads",
+      "githubContributions",
+      "forumParticipation"
+    ],
+    "scoring": {
+      "baseScore": 0,
+      "maxScore": 100,
+      "decayRate": 0.1,
+      "updateFrequency": 86400
+    },
+    "verification": {
+      "discordBot": "DISCORD_BOT_TOKEN",
+      "twitterApi": "TWITTER_API_KEY",
+      "githubApi": "GITHUB_API_KEY"
+    }
+  },
+  "kycIntegration": {
+    "provider": "JUMIO",
+    "apiEndpoint": "https://api.jumio.com/v2",
+    "apiKey": "KYC_API_KEY",
+    "webhookSecret": "KYC_WEBHOOK_SECRET",
+    "requiredDocuments": [
+      "passport",
+      "driversLicense",
+      "nationalId"
+    ],
+    "verificationLevels": [
+      { "level": 1, "name": "BASIC", "documentsRequired": 1 },
+      { "level": 2, "name": "ENHANCED", "documentsRequired": 2 },
+      { "level": 3, "name": "PREMIUM", "documentsRequired": 3 }
+    ]
+  },
+  "whitelistManagement": {
+    "sources": [
+      "discordMembers",
+      "twitterFollowers",
+      "newsletterSubscribers",
+      "privateSaleInterest",
+      "partnerAllocation"
+    ],
+    "merkleTree": {
+      "hashFunction": "keccak256",
+      "sortPairs": true,
+      "updateCooldown": 3600,
+      "maxSize": 50000
+    },
+    "tiers": [
+      { "tier": "PARTNER", "allocation": 10000 },
+      { "tier": "COMMUNITY", "allocation": 25000 },
+      { "tier": "PUBLIC", "allocation": 15000 }
+    ]
+  },
+  "security": {
+    "rateLimiting": {
+      "enabled": true,
+      "windowSize": 300,
+      "maxAttempts": 3,
+      "cooldownPeriod": 900
+    },
+    "frontRunningProtection": {
+      "enabled": true,
+      "maxGasPrice": "100000000000",
+      "blockDelayThreshold": 2,
+      "mevProtectionFee": 25
+    },
+    "purchaseValidation": {
+      "duplicateChecking": true,
+      "addressBlacklist": [],
+      "countryRestrictions": ["US", "CN", "KP"],
+      "vpnDetection": true
+    }
+  }
+} 

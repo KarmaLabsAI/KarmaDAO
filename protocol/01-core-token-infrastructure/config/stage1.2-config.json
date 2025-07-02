@@ -1,0 +1,93 @@
+{
+  "stage": "1.2",
+  "name": "Administrative Control System",
+  "description": "Configuration for multi-signature governance and administrative controls",
+  "contracts": {
+    "KarmaMultiSigManager": {
+      "requiredSignatures": 3,
+      "totalSigners": 5,
+      "confirmationTimeSeconds": 86400,
+      "executionTimeLimit": 604800,
+      "emergencyOverrideSignatures": 2
+    },
+    "KarmaTimelock": {
+      "minDelay": 259200,
+      "maxDelay": 2592000,
+      "gracePeriod": 1209600,
+      "proposers": [],
+      "executors": [],
+      "admin": "0x0000000000000000000000000000000000000000"
+    },
+    "AdminControl": {
+      "emergencyPauseDuration": 604800,
+      "roleRevocationCooldown": 86400,
+      "emergencyAdminCount": 2,
+      "roles": {
+        "emergencyAdminRole": "0x5d8e12c39faa2a67e6b84d0ed8b40b09f5dd74d3c3e6d6e6e7e6e6e6e6e6e6e",
+        "timelockAdminRole": "0x7d8e12c39faa2a67e6b84d0ed8b40b09f5dd74d3c3e6d6e6e7e6e6e6e6e6e6e",
+        "multisigAdminRole": "0x8d8e12c39faa2a67e6b84d0ed8b40b09f5dd74d3c3e6d6e6e7e6e6e6e6e6e6e",
+        "protocolAdminRole": "0x9d8e12c39faa2a67e6b84d0ed8b40b09f5dd74d3c3e6d6e6e7e6e6e6e6e6e6e"
+      }
+    }
+  },
+  "deployment": {
+    "network": "hardhat",
+    "gasLimit": 6000000,
+    "gasPrice": "20000000000",
+    "confirmations": 1,
+    "timeout": 300000,
+    "order": [
+      "KarmaMultiSigManager",
+      "KarmaTimelock",
+      "AdminControl"
+    ]
+  },
+  "verification": {
+    "enabled": true,
+    "delay": 30000,
+    "retries": 3
+  },
+  "testing": {
+    "coverage": {
+      "statements": 95,
+      "branches": 90,
+      "functions": 95,
+      "lines": 95
+    },
+    "accounts": {
+      "deployer": 0,
+      "admin": 1,
+      "emergencyAdmin": 2,
+      "timelockAdmin": 3,
+      "multisigAdmin": 4,
+      "protocolAdmin": 5,
+      "signer1": 6,
+      "signer2": 7,
+      "signer3": 8,
+      "signer4": 9,
+      "signer5": 10
+    }
+  },
+  "security": {
+    "multisig": {
+      "enabled": true,
+      "threshold": 3,
+      "maxSigners": 5
+    },
+    "timelock": {
+      "enabled": true,
+      "minDelay": 259200
+    },
+    "emergency": {
+      "pauseEnabled": true,
+      "roleRevocationEnabled": true,
+      "multipleAdmins": true
+    }
+  },
+  "governance": {
+    "proposalThreshold": "1000000000000000000000000",
+    "votingDelay": 86400,
+    "votingPeriod": 604800,
+    "executionDelay": 259200
+  }
+} 

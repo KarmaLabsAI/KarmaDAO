@@ -1,0 +1,68 @@
+{
+  "stage": "1.1",
+  "name": "KarmaToken Contract Development",
+  "description": "Configuration for core ERC-20 token with enhanced features",
+  "contracts": {
+    "KarmaToken": {
+      "name": "KarmaToken",
+      "symbol": "KARMA", 
+      "decimals": 18,
+      "maxSupply": "1000000000000000000000000000",
+      "initialSupply": "0",
+      "roles": {
+        "defaultAdminRole": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "minterRole": "0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6",
+        "pauserRole": "0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a",
+        "burnerRole": "0x3c11d16cbaffd01df69ce1c404f6340ee057498f5f00246190ea54220576a848"
+      },
+      "features": {
+        "pausable": true,
+        "burnable": true,
+        "mintable": true,
+        "accessControl": true
+      }
+    }
+  },
+  "deployment": {
+    "network": "hardhat",
+    "gasLimit": 5000000,
+    "gasPrice": "20000000000",
+    "confirmations": 1,
+    "timeout": 300000
+  },
+  "verification": {
+    "enabled": true,
+    "delay": 30000,
+    "retries": 3
+  },
+  "testing": {
+    "coverage": {
+      "statements": 95,
+      "branches": 90,
+      "functions": 95,
+      "lines": 95
+    },
+    "accounts": {
+      "deployer": 0,
+      "admin": 1,
+      "minter": 2,
+      "pauser": 3,
+      "user1": 4,
+      "user2": 5
+    }
+  },
+  "integration": {
+    "treasury": {
+      "enabled": true,
+      "interface": "ITreasury"
+    },
+    "buybackBurn": {
+      "enabled": true,
+      "interface": "IBuybackBurn"
+    },
+    "paymaster": {
+      "enabled": true,
+      "interface": "IPaymaster"
+    }
+  }
+} 

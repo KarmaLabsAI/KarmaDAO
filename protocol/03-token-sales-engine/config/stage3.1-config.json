@@ -1,0 +1,154 @@
+{
+  "name": "Stage 3.1: SaleManager Core Architecture Configuration",
+  "description": "Configuration parameters for the multi-phase sale management system",
+  "version": "1.0.0",
+  "network": {
+    "chainId": 42161,
+    "name": "Arbitrum One",
+    "rpcUrl": "https://arb1.arbitrum.io/rpc",
+    "blockExplorer": "https://arbiscan.io"
+  },
+  "contracts": {
+    "saleManager": {
+      "name": "SaleManager",
+      "gasLimit": 5000000,
+      "gasPrice": "0.1",
+      "constructorArgs": {
+        "karmaToken": "KARMA_TOKEN_ADDRESS",
+        "vestingVault": "VESTING_VAULT_ADDRESS", 
+        "admin": "ADMIN_MULTISIG_ADDRESS"
+      }
+    }
+  },
+  "salePhases": {
+    "private": {
+      "phase": 1,
+      "name": "Private Sale",
+      "allocation": "100000000000000000000000000",
+      "pricePerToken": "20000000000000000",
+      "fundingTarget": "2000000000000000000000",
+      "minPurchase": "25000000000000000000",
+      "maxPurchase": "200000000000000000000",
+      "requiresKYC": true,
+      "requiresAccreditation": true,
+      "requiresWhitelist": true,
+      "vestingSchedule": {
+        "immediate": "0",
+        "vested": "100",
+        "vestingDuration": 15552000,
+        "cliffDuration": 0
+      }
+    },
+    "preSale": {
+      "phase": 2,
+      "name": "Pre-Sale",
+      "allocation": "100000000000000000000000000",
+      "pricePerToken": "40000000000000000",
+      "fundingTarget": "4000000000000000000000",
+      "minPurchase": "1000000000000000000",
+      "maxPurchase": "10000000000000000000",
+      "requiresKYC": true,
+      "requiresAccreditation": false,
+      "requiresWhitelist": true,
+      "vestingSchedule": {
+        "immediate": "50",
+        "vested": "50",
+        "vestingDuration": 7776000,
+        "cliffDuration": 0
+      }
+    },
+    "public": {
+      "phase": 3,
+      "name": "Public Sale",
+      "allocation": "150000000000000000000000000",
+      "pricePerToken": "50000000000000000",
+      "fundingTarget": "7500000000000000000000",
+      "minPurchase": "100000000000000000",
+      "maxPurchase": "5000000000000000000",
+      "requiresKYC": false,
+      "requiresAccreditation": false,
+      "requiresWhitelist": false,
+      "vestingSchedule": {
+        "immediate": "100",
+        "vested": "0",
+        "vestingDuration": 0,
+        "cliffDuration": 0
+      }
+    }
+  },
+  "accessControl": {
+    "roles": {
+      "SALE_MANAGER_ROLE": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "KYC_MANAGER_ROLE": "0x2234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "WHITELIST_MANAGER_ROLE": "0x3234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      "ENGAGEMENT_MANAGER_ROLE": "0x4234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+    },
+    "managers": {
+      "kycManager": "KYC_MANAGER_ADDRESS",
+      "whitelistManager": "WHITELIST_MANAGER_ADDRESS", 
+      "engagementManager": "ENGAGEMENT_MANAGER_ADDRESS"
+    }
+  },
+  "whitelist": {
+    "merkleTreeGeneration": {
+      "hashFunction": "keccak256",
+      "sortPairs": true,
+      "deduplicateEntries": true
+    },
+    "maxWhitelistSize": 10000,
+    "updateCooldown": 3600
+  },
+  "validation": {
+    "purchaseLimits": {
+      "enforceMinimum": true,
+      "enforceMaximum": true,
+      "allowMultiplePurchases": true,
+      "maxPurchasesPerAddress": 5
+    },
+    "rateLimiting": {
+      "enabled": true,
+      "windowSize": 300,
+      "maxPurchasesPerWindow": 1,
+      "cooldownPeriod": 60
+    },
+    "frontRunningProtection": {
+      "enabled": true,
+      "maxGasPrice": "100000000000",
+      "blockDelayThreshold": 2
+    }
+  },
+  "treasury": {
+    "integration": {
+      "autoForward": true,
+      "forwardingGasLimit": 100000,
+      "emergencyWithdrawEnabled": true
+    },
+    "allocation": {
+      "marketing": 30,
+      "kol": 20,
+      "development": 30,
+      "buyback": 20
+    }
+  },
+  "events": {
+    "emitPurchaseEvents": true,
+    "emitAllocationEvents": true,
+    "emitPhaseEvents": true,
+    "externalAnalytics": {
+      "enabled": false,
+      "endpoint": "",
+      "apiKey": ""
+    }
+  },
+  "emergency": {
+    "pauseEnabled": true,
+    "emergencyWithdrawEnabled": true,
+    "emergencyContactAddress": "EMERGENCY_CONTACT_ADDRESS"
+  },
+  "deployment": {
+    "confirmations": 3,
+    "timeout": 300000,
+    "retryAttempts": 3,
+    "verifyContract": true
+  }
+} 

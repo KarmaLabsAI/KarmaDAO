@@ -1,0 +1,135 @@
+{
+  "stage": "4.1",
+  "name": "Treasury Core Infrastructure",
+  "description": "Core treasury fund management with automated allocation",
+  "version": "1.0.0",
+  "network": {
+    "chainId": 42161,
+    "name": "arbitrum-one",
+    "rpcUrl": "https://arb1.arbitrum.io/rpc",
+    "blockExplorer": "https://arbiscan.io"
+  },
+  "treasury": {
+    "initialBalance": "10000000000000000000000",
+    "allocationPercentages": {
+      "marketing": 30,
+      "kol": 20,
+      "development": 30,
+      "buyback": 20
+    },
+    "withdrawalTimelock": {
+      "thresholdPercent": 10,
+      "timelockDays": 7
+    },
+    "multisigRequirement": {
+      "threshold": 3,
+      "totalSigners": 5
+    }
+  },
+  "roles": {
+    "admin": {
+      "description": "Main admin role with highest privileges",
+      "permissions": ["DEFAULT_ADMIN_ROLE", "TREASURY_ADMIN_ROLE"]
+    },
+    "allocationManager": {
+      "description": "Manages fund allocations and rebalancing",
+      "permissions": ["ALLOCATION_MANAGER_ROLE"]
+    },
+    "withdrawalManager": {
+      "description": "Handles withdrawal requests and approvals",
+      "permissions": ["WITHDRAWAL_MANAGER_ROLE"]
+    },
+    "multisigManager": {
+      "description": "Multi-signature wallet manager",
+      "permissions": ["MULTISIG_MANAGER_ROLE"]
+    }
+  },
+  "security": {
+    "pausable": true,
+    "reentrancyGuard": true,
+    "accessControl": true,
+    "emergencyWithdrawal": true,
+    "maxWithdrawalPercentage": 50
+  },
+  "contracts": {
+    "Treasury": {
+      "name": "Treasury",
+      "constructorArgs": [
+        "${admin_address}",
+        "${multisig_manager_address}",
+        "${initial_balance}"
+      ],
+      "verify": true
+    }
+  },
+  "deployment": {
+    "gasLimit": 8000000,
+    "gasPrice": "auto",
+    "confirmations": 3,
+    "timeout": 300000
+  },
+  "verification": {
+    "enabled": true,
+    "apiKey": "${ARBISCAN_API_KEY}",
+    "attempts": 5,
+    "delay": 30000
+  },
+  "monitoring": {
+    "balanceAlerts": {
+      "lowBalanceThreshold": "1000000000000000000000",
+      "criticalBalanceThreshold": "500000000000000000000"
+    },
+    "allocationAlerts": {
+      "overdraftWarning": 90,
+      "overdraftCritical": 95
+    },
+    "withdrawalAlerts": {
+      "largeWithdrawalThreshold": 10,
+      "frequencyThreshold": 5
+    }
+  },
+  "categories": [
+    {
+      "id": 0,
+      "name": "MARKETING",
+      "description": "Marketing campaigns and brand promotion",
+      "percentage": 30,
+      "color": "#FF6B6B"
+    },
+    {
+      "id": 1,
+      "name": "KOL",
+      "description": "Key Opinion Leader partnerships",
+      "percentage": 20,
+      "color": "#4ECDC4"
+    },
+    {
+      "id": 2,
+      "name": "DEVELOPMENT",
+      "description": "Platform development and maintenance",
+      "percentage": 30,
+      "color": "#45B7D1"
+    },
+    {
+      "id": 3,
+      "name": "BUYBACK",
+      "description": "Token buyback and burn mechanism",
+      "percentage": 20,
+      "color": "#96CEB4"
+    }
+  ],
+  "integration": {
+    "saleManager": {
+      "enabled": true,
+      "fundCollectionRatio": 1.0
+    },
+    "paymaster": {
+      "enabled": true,
+      "initialFunding": "100000000000000000000"
+    },
+    "buybackBurn": {
+      "enabled": true,
+      "allocationRatio": 0.2
+    }
+  }
+} 

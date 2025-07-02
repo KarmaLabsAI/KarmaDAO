@@ -1,0 +1,159 @@
+{
+  "name": "@karmalabs/security-production-preparation",
+  "version": "1.0.0",
+  "description": "Stage 9: Security hardening and production deployment infrastructure for Karma Labs ecosystem",
+  "main": "index.js",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test:security": "hardhat test test/security/SecurityTests.js",
+    "test:integration": "hardhat test test/integration/EndToEndTests.js",
+    "test:stress": "hardhat test test/stress/LoadTests.js",
+    "test:coverage": "hardhat coverage",
+    "deploy:stage9.1": "hardhat run scripts/deploy-stage9.1.js",
+    "deploy:stage9.2": "hardhat run scripts/deploy-stage9.2.js",
+    "setup:stage9.1": "hardhat run scripts/setup-stage9.1.js",
+    "setup:stage9.2": "hardhat run scripts/setup-stage9.2.js",
+    "validate:stage9.1": "hardhat run scripts/validate-stage9.1.js",
+    "validate:stage9.2": "hardhat run scripts/validate-stage9.2.js",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
+    "lint:security": "slither contracts/ && mythril analyze contracts/",
+    "size-check": "hardhat size-contracts",
+    "gas-analysis": "hardhat run scripts/gas-analysis.js",
+    "security-scan": "npm run lint:security && hardhat run scripts/security-scan.js",
+    "monitor": "node utils/monitoring-dashboard.js",
+    "emergency-response": "node utils/emergency-response.js",
+    "generate-audit-report": "hardhat run scripts/generate-audit-report.js",
+    "deploy:mainnet": "hardhat run scripts/mainnet-deploy.js --network arbitrum",
+    "verify:contracts": "hardhat run scripts/verify-contracts.js --network arbitrum",
+    "initialize:system": "hardhat run scripts/initialize-system.js --network arbitrum",
+    "setup:monitoring": "hardhat run scripts/setup-monitoring.js --network arbitrum"
+  },
+  "keywords": [
+    "ethereum",
+    "arbitrum",
+    "defi",
+    "security",
+    "monitoring",
+    "production",
+    "bug-bounty",
+    "insurance",
+    "smart-contracts",
+    "karmalabs"
+  ],
+  "author": "Karma Labs Team",
+  "license": "MIT",
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.9.3",
+    "@openzeppelin/contracts-upgradeable": "^4.9.3",
+    "@chainlink/contracts": "^0.6.1",
+    "@uniswap/v3-core": "^1.0.1",
+    "@uniswap/v3-periphery": "^1.4.3",
+    "ethers": "^6.7.1",
+    "dotenv": "^16.3.1",
+    "axios": "^1.5.0",
+    "ws": "^8.14.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^3.0.2",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.8",
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.2",
+    "@nomicfoundation/hardhat-ethers": "^3.0.4",
+    "@nomicfoundation/hardhat-verify": "^1.1.1",
+    "@typechain/ethers-v6": "^0.4.3",
+    "@typechain/hardhat": "^8.0.3",
+    "@types/chai": "^4.3.6",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "^20.5.9",
+    "chai": "^4.3.8",
+    "hardhat": "^2.17.1",
+    "hardhat-gas-reporter": "^1.0.9",
+    "hardhat-contract-sizer": "^2.10.0",
+    "solidity-coverage": "^0.8.4",
+    "typechain": "^8.3.1",
+    "typescript": "^5.2.2",
+    "eslint": "^8.48.0",
+    "prettier": "^3.0.3",
+    "prettier-plugin-solidity": "^1.1.3"
+  },
+  "security": {
+    "audit": {
+      "firms": [
+        "ConsenSys Diligence",
+        "OpenZeppelin",
+        "Trail of Bits",
+        "Quantstamp",
+        "Certik"
+      ],
+      "scope": "FULL_SYSTEM",
+      "completed": true,
+      "report": "docs/security-audit-report.md"
+    },
+    "bug-bounty": {
+      "platform": "Immunefi",
+      "max-reward": "$200,000",
+      "scope": "All smart contracts",
+      "active": true
+    },
+    "insurance": {
+      "provider": "Nexus Mutual",
+      "coverage": "$675,000",
+      "active": true
+    }
+  },
+  "monitoring": {
+    "forta": {
+      "enabled": true,
+      "bots": [
+        "attack-detector",
+        "governance-monitor",
+        "treasury-watcher",
+        "bridge-monitor"
+      ]
+    },
+    "defender": {
+      "enabled": true,
+      "sentinels": [
+        "admin-actions",
+        "large-transfers",
+        "unusual-activity",
+        "emergency-events"
+      ]
+    },
+    "custom": {
+      "enabled": true,
+      "dashboard": "utils/monitoring-dashboard.js",
+      "emergency": "utils/emergency-response.js"
+    }
+  },
+  "production": {
+    "network": "arbitrum-one",
+    "deployment": {
+      "method": "staged",
+      "verification": true,
+      "monitoring": true
+    },
+    "performance": {
+      "targets": {
+        "availability": "99.9%",
+        "response-time": "500ms",
+        "throughput": "1000 TPS",
+        "error-rate": "0.1%"
+      }
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/karmalabs/smart-contracts.git",
+    "directory": "protocol/09-security-production-preparation"
+  },
+  "bugs": {
+    "url": "https://github.com/karmalabs/smart-contracts/issues"
+  },
+  "homepage": "https://karmalabs.com"
+} 

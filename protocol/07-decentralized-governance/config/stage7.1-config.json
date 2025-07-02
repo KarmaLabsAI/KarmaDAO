@@ -1,0 +1,52 @@
+{
+  "stage": "7.1",
+  "name": "KarmaDAO Core Governance",
+  "description": "Core governance system with quadratic voting and proposal management",
+  "network": {
+    "chainId": 42161,
+    "name": "Arbitrum One",
+    "rpcUrl": "https://arb1.arbitrum.io/rpc",
+    "blockExplorer": "https://arbiscan.io"
+  },
+  "governance": {
+    "proposalThreshold": "1000000000000000000000000",
+    "quorumPercentage": 5,
+    "votingDelay": 86400,
+    "votingPeriod": 604800,
+    "executionDelay": 259200,
+    "maxActions": 10,
+    "quadraticVotingEnabled": true
+  },
+  "quadraticVoting": {
+    "baseWeight": "1000000000000000000",
+    "scalingFactor": "500000000000000000",
+    "maxWeight": "100000000000000000000000",
+    "minStakeRequired": "100000000000000000000"
+  },
+  "timelock": {
+    "minDelay": 259200,
+    "gracePeriod": 1209600
+  },
+  "roles": {
+    "admin": "GOVERNANCE_ADMIN_ROLE",
+    "proposer": "PROPOSER_ROLE", 
+    "executor": "EXECUTOR_ROLE",
+    "canceller": "CANCELLER_ROLE"
+  },
+  "deployment": {
+    "gasLimit": 8000000,
+    "gasPrice": "100000000",
+    "confirmations": 2,
+    "timeout": 600000
+  },
+  "security": {
+    "multiSigThreshold": 3,
+    "emergencyPauseEnabled": true,
+    "upgradeDelayPeriod": 604800
+  },
+  "integration": {
+    "stakingContract": "{{GOVERNANCE_STAKING_ADDRESS}}",
+    "tokenContract": "{{KARMA_TOKEN_ADDRESS}}",
+    "treasuryContract": "{{TREASURY_ADDRESS}}"
+  }
+} 

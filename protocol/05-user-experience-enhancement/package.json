@@ -1,0 +1,69 @@
+{
+  "name": "@karmadao/user-experience-enhancement",
+  "version": "1.0.0",
+  "description": "Stage 5: User Experience Enhancement - EIP-4337 Paymaster system for gasless transactions",
+  "main": "index.js",
+  "scripts": {
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy-paymaster.js",
+    "deploy:stage5.1": "hardhat run scripts/deploy-stage5.1.js",
+    "test:paymaster": "hardhat test test/Paymaster.test.js",
+    "test:stage5.1": "hardhat test test/Stage5.1.test.js",
+    "coverage": "hardhat coverage",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "clean": "hardhat clean",
+    "node": "hardhat node",
+    "console": "hardhat console"
+  },
+  "keywords": [
+    "karma-labs",
+    "paymaster",
+    "eip-4337",
+    "gasless",
+    "user-experience",
+    "blockchain",
+    "ethereum",
+    "arbitrum",
+    "smart-contracts"
+  ],
+  "author": "Karma Labs",
+  "license": "MIT",
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "ethers": "^6.7.1"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.2",
+    "@nomicfoundation/hardhat-ethers": "^3.0.4",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.8",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "chai": "^4.3.8",
+    "eslint": "^8.50.0",
+    "hardhat": "^2.17.2",
+    "hardhat-gas-reporter": "^1.0.9",
+    "solidity-coverage": "^0.8.4"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/karma-labs/protocol.git",
+    "directory": "protocol/05-user-experience-enhancement"
+  },
+  "bugs": {
+    "url": "https://github.com/karma-labs/protocol/issues"
+  },
+  "homepage": "https://karma-labs.io",
+  "files": [
+    "contracts/**/*",
+    "scripts/**/*",
+    "test/**/*",
+    "utils/**/*",
+    "config/**/*",
+    "README.md"
+  ]
+} 

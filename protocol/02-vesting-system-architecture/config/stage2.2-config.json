@@ -1,0 +1,141 @@
+{
+  "stage": "2.2",
+  "name": "Vesting Schedule Configurations",
+  "description": "Configuration for specific vesting patterns for different allocation types",
+  "contracts": {
+    "TeamVesting": {
+      "vestingDuration": 126144000,
+      "cliffDuration": 31536000,
+      "releaseFrequency": 2592000,
+      "totalAllocation": "200000000000000000000000000",
+      "maxTeamMembers": 100,
+      "roles": {
+        "teamManagerRole": "0x8d8e12c39faa2a67e6b84d0ed8b40b09f5dd74d3c3e6d6e6e7e6e6e6e6e6e6e",
+        "hrAdminRole": "0x9d8e12c39faa2a67e6b84d0ed8b40b09f5dd74d3c3e6d6e6e7e6e6e6e6e6e6e"
+      }
+    },
+    "PrivateSaleVesting": {
+      "vestingDuration": 15552000,
+      "cliffDuration": 0,
+      "releaseFrequency": 2592000,
+      "totalAllocation": "100000000000000000000000000",
+      "maxInvestors": 500,
+      "roles": {
+        "saleManagerRole": "0xad8e12c39faa2a67e6b84d0ed8b40b09f5dd74d3c3e6d6e6e7e6e6e6e6e6e6e",
+        "investorRelationsRole": "0xbd8e12c39faa2a67e6b84d0ed8b40b09f5dd74d3c3e6d6e6e7e6e6e6e6e6e6e"
+      }
+    }
+  },
+  "vestingSchedules": {
+    "teamVesting": {
+      "name": "Team 4-Year Vesting",
+      "description": "4-year vesting with 12-month cliff for team members",
+      "totalDuration": 126144000,
+      "cliffDuration": 31536000,
+      "releaseSchedule": "monthly",
+      "releasePercentage": {
+        "atCliff": 25,
+        "monthly": 2.083
+      }
+    },
+    "privateSaleVesting": {
+      "name": "Private Sale 6-Month Vesting",
+      "description": "6-month linear vesting for private sale participants",
+      "totalDuration": 15552000,
+      "cliffDuration": 0,
+      "releaseSchedule": "monthly",
+      "releasePercentage": {
+        "monthly": 16.67
+      }
+    },
+    "advisorVesting": {
+      "name": "Advisor 2-Year Vesting",
+      "description": "2-year vesting with 6-month cliff for advisors",
+      "totalDuration": 63072000,
+      "cliffDuration": 15552000,
+      "releaseSchedule": "monthly",
+      "releasePercentage": {
+        "atCliff": 25,
+        "monthly": 4.167
+      }
+    }
+  },
+  "deployment": {
+    "network": "hardhat",
+    "gasLimit": 8000000,
+    "gasPrice": "20000000000",
+    "confirmations": 1,
+    "timeout": 300000,
+    "order": [
+      "TeamVesting",
+      "PrivateSaleVesting"
+    ],
+    "dependencies": {
+      "vestingVault": "required",
+      "karmaToken": "required",
+      "adminControl": "required"
+    }
+  },
+  "verification": {
+    "enabled": true,
+    "delay": 30000,
+    "retries": 3
+  },
+  "testing": {
+    "coverage": {
+      "statements": 95,
+      "branches": 90,
+      "functions": 95,
+      "lines": 95
+    },
+    "accounts": {
+      "deployer": 0,
+      "admin": 1,
+      "teamManager": 2,
+      "saleManager": 3,
+      "teamMember1": 4,
+      "teamMember2": 5,
+      "investor1": 6,
+      "investor2": 7,
+      "advisor1": 8,
+      "advisor2": 9
+    },
+    "scenarios": {
+      "teamVestingFullCycle": true,
+      "privateSaleVestingFullCycle": true,
+      "cliffValidation": true,
+      "earlyTermination": true,
+      "roleManagement": true
+    }
+  },
+  "integration": {
+    "vestingVault": {
+      "interface": "IVestingVault",
+      "requiredMethods": [
+        "createVestingSchedule",
+        "releaseVestedTokens",
+        "revokeVesting"
+      ]
+    },
+    "karmaToken": {
+      "interface": "IKarmaToken",
+      "requiredMethods": [
+        "mint",
+        "transfer",
+        "balanceOf"
+      ]
+    }
+  },
+  "governance": {
+    "vestingModification": {
+      "enabled": false,
+      "requiresDAO": true,
+      "timelockRequired": true
+    },
+    "emergencyRevocation": {
+      "enabled": true,
+      "requiresMultisig": true,
+      "cooldownPeriod": 86400
+    }
+  }
+} 

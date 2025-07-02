@@ -1,0 +1,85 @@
+{
+  "stage": "2.1",
+  "name": "VestingVault Core Development",
+  "description": "Configuration for modular vesting contract system with flexible scheduling",
+  "contracts": {
+    "VestingVault": {
+      "maxBeneficiaries": 10000,
+      "maxSchedulesPerBeneficiary": 10,
+      "defaultCliffDuration": 0,
+      "minVestingDuration": 86400,
+      "maxVestingDuration": 126144000,
+      "emergencyWithdrawEnabled": true,
+      "pausable": true,
+      "roles": {
+        "defaultAdminRole": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "vaultManagerRole": "0xa49807205ce4d355092ef5a8a18f56e8913cf4a201fbe287825b095693c21775",
+        "pauserRole": "0x65d7a28e3265b37a6474929f336521b332c1681b933f6cb9f3376673440d862a",
+        "emergencyRole": "0x5d8e12c39faa2a67e6b84d0ed8b40b09f5dd74d3c3e6d6e6e7e6e6e6e6e6e6e"
+      }
+    }
+  },
+  "vestingCalculation": {
+    "precision": 18,
+    "roundingMode": "down",
+    "gasOptimization": true,
+    "batchProcessing": {
+      "enabled": true,
+      "maxBatchSize": 50
+    }
+  },
+  "deployment": {
+    "network": "hardhat",
+    "gasLimit": 8000000,
+    "gasPrice": "20000000000",
+    "confirmations": 1,
+    "timeout": 300000,
+    "dependencies": {
+      "karmaToken": "required",
+      "treasury": "required",
+      "adminControl": "optional"
+    }
+  },
+  "verification": {
+    "enabled": true,
+    "delay": 30000,
+    "retries": 3
+  },
+  "testing": {
+    "coverage": {
+      "statements": 95,
+      "branches": 90,
+      "functions": 95,
+      "lines": 95
+    },
+    "accounts": {
+      "deployer": 0,
+      "admin": 1,
+      "vaultManager": 2,
+      "pauser": 3,
+      "beneficiary1": 4,
+      "beneficiary2": 5,
+      "beneficiary3": 6,
+      "emergency": 7
+    },
+    "testScenarios": {
+      "linearVesting": true,
+      "cliffVesting": true,
+      "multipleSchedules": true,
+      "batchOperations": true,
+      "emergencyScenarios": true
+    }
+  },
+  "storage": {
+    "beneficiaryStorageOptimization": true,
+    "scheduleCompression": true,
+    "eventIndexing": true
+  },
+  "security": {
+    "reentrancyGuard": true,
+    "accessControl": true,
+    "pausable": true,
+    "upgradeability": false,
+    "auditRequired": true
+  }
+} 

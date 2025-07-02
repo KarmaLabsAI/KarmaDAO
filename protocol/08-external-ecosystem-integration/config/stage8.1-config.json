@@ -1,0 +1,156 @@
+{
+  "stage": "8.1",
+  "name": "0G Blockchain Integration Development",
+  "description": "Configuration for 0G blockchain integration and AI inference payment system",
+  "network": {
+    "arbitrum": {
+      "chainId": 42161,
+      "rpcUrl": "https://arb1.arbitrum.io/rpc",
+      "blockExplorer": "https://arbiscan.io"
+    },
+    "zeroG": {
+      "chainId": 12345,
+      "rpcUrl": "https://rpc.0g.ai",
+      "bridgeAddress": "0x742d35Cc6634C0532925a3b8D40b4ed7C3a9D0Cb",
+      "blockExplorer": "https://explorer.0g.ai"
+    }
+  },
+  "contracts": {
+    "ZeroGIntegration": {
+      "gasLimit": 2000000,
+      "pricing": {
+        "computePrice": "0.001",
+        "storagePrice": "0.0001", 
+        "transferPrice": "0.00001"
+      },
+      "thresholds": {
+        "reportingThreshold": "1.0",
+        "settlementThreshold": "10.0",
+        "maxRequestTimeout": 86400
+      }
+    },
+    "ZeroGOracle": {
+      "gasLimit": 1500000,
+      "validation": {
+        "validationPeriod": 3600,
+        "disputePeriod": 86400,
+        "oracleFee": "0.001"
+      },
+      "validators": [
+        "0x742d35Cc6634C0532925a3b8D40b4ed7C3a9D0Cb",
+        "0x8ba1f109551bD432803012645Hac136c5532213",
+        "0x2546BcD3c84621e976D8185a91A922aE77ECEc30"
+      ]
+    },
+    "CrossChainBridge": {
+      "gasLimit": 2500000,
+      "bridgeConfig": {
+        "minAmount": "100",
+        "maxAmount": "1000000",
+        "bridgeFee": 100,
+        "validationThreshold": 2,
+        "timeoutPeriod": 86400
+      },
+      "supportedChains": [
+        {
+          "chainId": 12345,
+          "name": "0G Blockchain",
+          "bridgeAddress": "0x742d35Cc6634C0532925a3b8D40b4ed7C3a9D0Cb",
+          "gasLimit": 200000
+        }
+      ]
+    }
+  },
+  "aiProviders": {
+    "supported": [
+      {
+        "name": "0G AI Network",
+        "endpoint": "https://ai.0g.ai",
+        "models": [
+          "stable-diffusion-v1.5",
+          "stable-diffusion-xl",
+          "dall-e-3",
+          "claude-3",
+          "gpt-4"
+        ],
+        "pricing": {
+          "image": "0.01",
+          "text": "0.001",
+          "video": "0.1"
+        }
+      }
+    ]
+  },
+  "storage": {
+    "ipfs": {
+      "gateway": "https://ipfs.io/ipfs/",
+      "pinning": "https://api.pinata.cloud"
+    },
+    "zeroG": {
+      "endpoint": "https://storage.0g.ai",
+      "encryption": true,
+      "replication": 3
+    }
+  },
+  "fees": {
+    "aiInference": {
+      "computeUnit": "0.001",
+      "minimumCharge": "0.01"
+    },
+    "storage": {
+      "perMB": "0.0001",
+      "encryptionSurcharge": "0.00001"
+    },
+    "crossChain": {
+      "bridgeFee": 100,
+      "validatorReward": "0.001"
+    }
+  },
+  "monitoring": {
+    "enabled": true,
+    "endpoints": {
+      "health": "/health",
+      "metrics": "/metrics",
+      "alerts": "/alerts"
+    },
+    "alerting": {
+      "failureThreshold": 3,
+      "recoveryThreshold": 2,
+      "escalationDelay": 300
+    }
+  },
+  "security": {
+    "rateLimiting": {
+      "requestsPerMinute": 100,
+      "burstLimit": 200
+    },
+    "validation": {
+      "requireProof": true,
+      "proofExpiry": 3600,
+      "maxRetries": 3
+    },
+    "emergency": {
+      "pauseEnabled": true,
+      "adminOverride": true,
+      "recoveryTime": 86400
+    }
+  },
+  "deployment": {
+    "order": [
+      "ZeroGOracle",
+      "CrossChainBridge", 
+      "ZeroGIntegration"
+    ],
+    "verification": {
+      "enabled": true,
+      "source": "etherscan",
+      "constructorArgs": true
+    },
+    "postDeploy": [
+      "configureChains",
+      "setupValidators",
+      "initializePricing",
+      "enableSystem"
+    ]
+  }
+} 

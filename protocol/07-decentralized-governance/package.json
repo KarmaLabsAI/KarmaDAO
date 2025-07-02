@@ -1,0 +1,24 @@
+{
+  "name": "@karma-labs/decentralized-governance",
+  "version": "1.0.0",
+  "description": "Karma Labs Decentralized Governance System with Quadratic Voting",
+  "main": "contracts/KarmaDAO.sol",
+  "scripts": {
+    "compile": "npx hardhat compile",
+    "test": "npx hardhat test",
+    "deploy:stage7.1": "npx hardhat run scripts/deploy-governance-stage7.1.js",
+    "deploy:stage7.2": "npx hardhat run scripts/deploy-governance-stage7.2.js",
+    "setup:stage7.1": "npx hardhat run scripts/setup-stage7.1.js",
+    "setup:stage7.2": "npx hardhat run scripts/setup-stage7.2.js",
+    "validate:stage7.1": "npx hardhat run scripts/validate-stage7.1.js",
+    "validate:stage7.2": "npx hardhat run scripts/validate-stage7.2.js"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.9.0",
+    "ethers": "^6.7.0"
+  },
+  "devDependencies": {
+    "hardhat": "^2.17.0",
+    "chai": "^4.2.0"
+  }
+}
